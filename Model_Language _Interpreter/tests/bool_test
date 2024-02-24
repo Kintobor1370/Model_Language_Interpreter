@@ -1,0 +1,18 @@
+program
+{
+	writeline("Logical addition:");
+	writeline("  ", true, " OR ", true, " = ", true or true);
+	writeline("  ", true, " OR ", false, " = ", true or false);
+	writeline("  ", false, " OR ", true, " = ", false or true);
+	writeline("  ", false, " OR ", false, " = ", false or false);
+
+	writeline("\nLogical multiplication:");
+	writeline("  ", true, " AND ", true, " = ", true and true);
+	writeline("  ", true, " AND ", false, " = ", true and false);
+	writeline("  ", false, " AND ", true, " = ", false and true);
+	writeline("  ", false, " AND ", false, " = ", false and false);
+	
+	writeline("\nLogical reverse:");
+	writeline("  not ", true, " = ", not true);
+	writeline("  not ", false, " = ", not false);
+}

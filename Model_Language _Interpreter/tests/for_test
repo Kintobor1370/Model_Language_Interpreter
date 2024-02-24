@@ -1,0 +1,13 @@
+program
+{
+
+	int x = 10;
+	int y = 10;
+	for(int i=0; i<x; i++)
+	{
+		x = x - 2;
+		y = y + 1;
+	}
+	writeline("x = ", x);
+	writeline("y = ", y);
+}

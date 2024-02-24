@@ -1,0 +1,18 @@
+program
+{
+	int x = 5;
+	int y = 10;
+	
+	if (x > y)
+		writeline(x, " is greater than ", y);
+	else
+		writeline(x, " is less or equal than ", y);
+	
+	x = 10;
+	if (x > y)
+		writeline(x, " is greater than ", y);
+	else if (x < y)
+		writeline(x, " is less than ", y);
+	else
+		writeline(x, " and ", y, " are equal");
+}

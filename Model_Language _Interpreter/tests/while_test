@@ -1,0 +1,22 @@
+program
+{
+	int x = 10, y;
+	y = 10;
+
+	while ((x <= 30) or (y > 5))
+	{
+		x = x + 2;
+		y = y - 1;
+	}
+	writeline("x = ", x);
+	writeline("y = ", y);
+	writeline(" ");
+
+	while ((x >= 5) and (y < 20))
+	{
+		x = x - 2;
+		y = y + 1;
+	}
+	writeline("x = ", x);
+	writeline("y = ", y);
+}

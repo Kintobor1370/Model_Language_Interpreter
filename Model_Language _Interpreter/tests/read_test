@@ -1,0 +1,22 @@
+program
+{
+	int x;
+	string s;
+	bool b;
+	
+	write("Enter any integer value: ");
+	read(x);
+	
+	writeline(" ");
+	write("Enter any string value: ");
+	read(s);
+	
+	writeline(" ");
+	write("Enter any boolean value: ");
+	read(b);
+
+	writeline(" ");
+	writeline("Your integer value: ", x);
+	writeline("Your string value: ", s);
+	writeline("Your boolean value: ", b);
+}
