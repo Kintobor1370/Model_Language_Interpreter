@@ -1,30 +1,42 @@
 # Model language interpreter
 
-A C++ console application that parses and executes a program written in a model programming language.
-Capable of detecting lexical, syntax, and semantic errors.
+A C++ console application that parses and executes programs written in a custom programming language. The interpreter performs lexical, analysis, syntax parsing, and semantic validation, and executes code using Reverse Polish Notation (RPN).
 
-# Model language syntax
-The model language can be described with the following EBNF:
+__Supported data types:__
+- Integer: `int`
+- String: `string`
+- Boolean: `bool`
 
-Available operators and their precedence:
-1. Logical inversion: ```not```
-2. Multiplication, division: ```*```, ```/```
-3. Addition, subtraction: ```+```, ```-```
-4. Relational operators: ```==```, ```!=```, ```<```, ```>```, ```<=```, ```>=```
-5. Conjunction: ```and```
-6. Disjunction: ```or```
-7. Assignment: ```=```
+__Operators and their precedence:__
+1. Logical NOT: `not`
+2. Increment / Decrement: `++`, `--`
+3. Multiplication / Division: `*`, `/`
+4. Logical AND: `and`
+5. Addition / Subtraction: `+`, `-`
+6. Logical NOT: `or`
+7. Relational: `==`, `!=`, `<`, `>`, `<=`, `>=`
+9. Assignment: `=`
 
-Available _string_ operators:
-- Initialization and assignment: ```string str = "Hello, World!";```
-- String concatenation: ```string c = a + b;``` (Here, ```a``` and ```b``` are string constants)
-- Relational operators: ```>```, ```<```, ```==```, ```!=``` <br> E.g.: ```bool b = "Hello" == "Hello";``` will be true; ```bool b = "Hello" == "World"``` will be false
+__Control flow:__
+- Conditional statements: `if()`, `else`
+- Loops: `while()`, `for()`
 
-To compile the app, run the following command prompt:
+The semantics of the aforementioned features are similar to those in the C programming language.
+
+__Input and Output:__
+- `read()`: Reads a __single__ variable <br> _Example:_ `int x; read(x);`
+- `write()`: Prints one or more expressions
+
+__String operators:__
+- Declaration and assignment: `string str = "Hello, World!";`
+- Concatenation: ```string c = a + b;``` (Here, `a` and `b` are string constants)
+- Comparison: `>`, `<`, `==`, `!=` <br> _Example:_ `bool b = "Hello" == "Hello"; // true`
+
+Test cases are included in the _tests_ folder.
+
+# To build and run the interpreter on Windows:
+Run the following command prompt:
 ```
 g++ TestInterpreter.cpp -o Interpreter.exe
-```
-To run the app, run the following command prompt:
-```
 Interpreter.exe
 ```
