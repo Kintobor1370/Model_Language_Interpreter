@@ -37,8 +37,12 @@ __String operators:__
 Test cases are included in the _tests_ folder.
 
 # To build and run the interpreter on Windows:
-Run the following command prompt:
+1. Run the following command prompt:
 ```
 g++ TestInterpreter.cpp -o Interpreter.exe
 Interpreter.exe
 ```
+2. Pick a test from the _tests_ folder, enter its file name and press Enter <br> Example: <br> <img width="379" height="74" alt="image" src="https://github.com/user-attachments/assets/0eafaa70-296a-4191-8d88-0cec6cc6092f" /> <br> <img width="821" height="417" alt="image" src="https://github.com/user-attachments/assets/d5fec917-49c1-4c03-af3a-c47a72ada396" />
+3. You may also write your own code file. To execute it, place it in the _Model_Language_Interpreter_ folder.
+
+
