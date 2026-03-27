@@ -13,21 +13,21 @@ using namespace std;
  *  4) ({ A; B }) = code block of operations A and B
  *
  * 
- * Program's header:		P   	-->  program { OPSs }
+ * Program header:			HEADER   	-->  program { CODE_BLOCK }
  *
- * Descriptions:			DESCS	-->  DESC; DESCS | DESC; | eps
- * Description				DESC	--> [int | string | bool] VAR <, VAR>			
- * Variable					VAR	    --> LEX_ID | LEX_ID = CONST														
- * Constant parameter		CONST   --> INT | STR | BOOL
+ * Descriptions:			DESCS		-->  DESC; DESCS | DESC; | eps
+ * Description				DESC		--> [int | string | bool] VAR <, VAR>			
+ * Variable					VAR	    	--> LEX_ID | LEX_ID = CONST														
+ * Constant parameter		CONST   	--> INT | STR | BOOL
  *
- * Operations				OPS      --> <OP>
- * Operation				OP       --> DES | OP_STMNT | { OPS } | if (STMNT) OP <else OP> | while (STMNT) OP | 
- * 										 for ([STMNT]; [STMNT]; [STMNT]) OP | break; | goto LABEL; | read(ID); | write (STMNT <, STMNT>);
- * Statement operator		OP_STMNT --> STMNT;
- * Statement				STMNT    --> ADD | ADD = STMNT | ADD [==|<|>|<=|>=|!=] ADD 
- * Additive state			ADD		 --> MULTI | MULTI [+ | - | or] MULTI
- * Multiplicative state		MULTI	 --> FIN | FIN [ * | / | and] FIN
- * Final state 				FIN		 --> ID | LABEL: | ID++ | ID-- | ++ID | --ID | [+ | -] FIN | STR | BOOL | not FIN | STMNT
+ * Operations				CODE_BLOCK	--> <OP>
+ * Operation				OP       	--> DESCS | OP_STMNT | { OPS } | if (STMNT) OP <else OP> | while (STMNT) OP | 
+ * 										 	for ([STMNT]; [STMNT]; [STMNT]) OP | break; | goto LABEL; | read(ID); | write (STMNT <, STMNT>);
+ * Statement operator		OP_STMNT 	--> STMNT | ID = STMNT;
+ * Statement				STMNT    	--> ADD | ADD = STMNT | ADD [==|<|>|<=|>=|!=] ADD 
+ * Additive state			ADD		 	--> MULTI | MULTI [+ | - | or] MULTI
+ * Multiplicative state		MULTI	 	--> FIN | FIN [ * | / | and] FIN
+ * Final state 				FIN		 	--> ID | LABEL: | ID++ | ID-- | ++ID | --ID | [+ | -] FIN | STR | BOOL | not FIN | STMNT
  */
 
 
@@ -61,7 +61,7 @@ class Parser
 	bool pp_id;
 	
 	// Syntax actions
-	void P();															// Program's header
+	void HEADER();															// Program's header
 
 	void DESCS();														// Descriptions
 	void DESC();														// Description		
@@ -175,7 +175,7 @@ void Parser::analyse()
 	RPNs.clear();
 
 	getLexeme();
-	P();
+	HEADER();
 	if (type != LEX_FIN)
 		syntaxError(													// Syntax error #1
 			1,
@@ -186,7 +186,7 @@ void Parser::analyse()
 
 //.........................SYNTAX ANALYSIS
 // Analyse code starting from the program's header
-void Parser::P()
+void Parser::HEADER()
 {
 	if (type == LEX_PROGRAM)								    		// if first lexeme is program's header:
 		getLexeme();													//   get next lexeme
@@ -840,7 +840,7 @@ void Parser::setVar()
 }
 
 // Check whether identifier was declared or not
-void Parser::identCheck(int value)										// Проверка идентификатора (объявлен или нет)
+void Parser::identCheck(int value)
 {
 	if(identTable[value].isDeclared())									// if declared:
 		lexStack.push(identTable[value].getType());						//   add it to the lexemes stack
