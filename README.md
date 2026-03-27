@@ -20,6 +20,8 @@ __Operators and their precedence:__
 __Control flow:__
 - Conditional statements: `if()`, `else`
 - Loops: `while()`, `for()`
+- Nested loops
+- Jump statements: `break`, `goto`
 
 The semantics of the aforementioned features are similar to those in the C programming language.
 
