@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <conio.h>
 #include "Interpreter.cpp"
 
@@ -153,6 +154,7 @@ void getExpectedResults(int testNumber)
 
 int main()
 {
+	string programName;
 	string tests[] = {
 		"tests\\write_test",
 		"tests\\read_test",
@@ -162,33 +164,71 @@ int main()
 		"tests\\for_test",
 		"tests\\break_test",
 		"tests\\goto_test",
-		"tests\\comment_test"
+		"tests\\comment_test",
+
+		"tests/write_test",
+		"tests/read_test",
+		"tests/bool_test",
+		"tests/if_test",
+		"tests/while_test",
+		"tests/for_test",
+		"tests/break_test",
+		"tests/goto_test",
+		"tests/comment_test"
 	};
 	int amount = 9;
+	bool isTest = 0;
+	int testNum;
 	char input;
 
 //=====================================EXPECTED RESULT=====================================
 //======================================ACTUAL RESULT======================================
+	
+	system("cls");
+	cout << "Enter code file name: ";
+	cin >> programName;
 
-	for (int i=0; i<amount; i++)
+	ifstream f(programName);
+	while (!f.good())
+	{
+		cout << "Cannot open file \'" << programName << "\'. Please try again.\n" << endl;
+		cout << "Enter code file name: ";
+		cin >> programName;
+		f = ifstream(programName);
+	}
+
+	for (int i=0; i<amount*2; i++)
+	{
+		if (programName == tests[i])
+		{
+			isTest = 1;
+			testNum = i % amount + 1;
+		}
+	}
+
+	system("cls");
+	if (isTest)
 	{
 		system("cls");
-		cout << "==========================================TEST " << i + 1 << "=========================================\n\n";
+		cout << "==========================================TEST " << testNum << "=========================================\n\n";
 		cout << ".....................................Expexted result.....................................\n";
 		
-		getExpectedResults(i);
+		getExpectedResults(testNum - 1);
 		
 		cout << "\n......................................Actual result......................................\n";
 		
-		string testProgramName = tests[i];
-		Interpreter interpreter(testProgramName);
+		Interpreter interpreter(programName);
 		interpreter.interpret();
 		
 		cout << "\n=========================================================================================\n\n";
-		cout << "Press any key to continue";
-		input = getch();
 	}
+	else
+	{
+		Interpreter interpreter(programName);
+		interpreter.interpret();
+	}
+	cout << "Press any key to finish";
+	input = getch();
 	system("cls");
-	cout << "ALL TESTS COMPLETE\n\n";
 	return 0;
 }
