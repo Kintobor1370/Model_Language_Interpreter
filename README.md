@@ -1,3 +1,5 @@
+# Model language interpreter
+
 A C++ console app that parses and executes a program written in a model programming language.
 \
 Capable of detecting lexical, syntax, and semantic errors.
