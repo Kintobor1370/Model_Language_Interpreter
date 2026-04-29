@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stack>
-#include "LexicalAnalyser.cpp"
+#include "Scanner.cpp"
 
 using namespace std;
 
