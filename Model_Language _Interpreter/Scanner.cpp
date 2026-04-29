@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 #include "Tables.cpp"
 
 using namespace std;
@@ -7,19 +8,20 @@ using namespace std;
 //_______________________________________________________SCANNER_______________________________________________________
 class Scanner
 {
-	FILE *f;															// file descriptor of a model language program
+	FILE *f;															// program file descriptor
 	
 	enum state
 	{
 		INIT,															// initial state
 		IDENT,
 		NUMBER,
+		DECIMAL,
 		STRING,
 		COMMENT,														// comment
 		COMMENT_STRING,													// one-line comment
 		DELIM,															// delimeter
 		NOT_EQ,															// not equal
-		FIN																// final state
+		END_OF_FILE														// end of file
 	};
 	
 	state currentState;
@@ -133,6 +135,7 @@ public:
 };
 
 
+// Table of functional words
 string Scanner::wordTable[] =
 {
 	"and",
@@ -153,13 +156,17 @@ string Scanner::wordTable[] =
 	"or",
 	"program",
 	"read",
+	"real",
+	"step",
 	"string",
 	"true",
+	"until",
 	"while",
 	"write",
 	"writeline",
 };
 
+// Table of lexemes corresponding to functional words
 lexemeType Scanner::words[] =
 {
 	LEX_AND,															// 1
@@ -180,14 +187,18 @@ lexemeType Scanner::words[] =
 	LEX_OR,																// 16
 	LEX_PROGRAM,														// 17
 	LEX_READ,															// 18
-	LEX_STRING,															// 19
-	LEX_TRUE,															// 20
-	LEX_WHILE,															// 21
-	LEX_WRITE,															// 22
-	LEX_WRITELINE,														// 23
-	LEX_FIN,															// 24
+	LEX_REAL,															// 19
+	LEX_STEP,															// 20
+	LEX_STRING,															// 21
+	LEX_TRUE,															// 22
+	LEX_UNTIL,															// 23
+	LEX_WHILE,															// 24
+	LEX_WRITE,															// 25
+	LEX_WRITELINE,														// 26
+	LEX_EOF,															// 27
 };
 
+// Table of delimeters
 string Scanner::delimTable[] =
 {
 	"{",
@@ -216,6 +227,7 @@ string Scanner::delimTable[] =
 	"!=",
 };
 
+// Table of lexemes corresponding to delimeters
 lexemeType Scanner::delims[] =
 {
 	LEX_LEFT_BRACE,														// 1
@@ -247,7 +259,8 @@ lexemeType Scanner::delims[] =
 Lexeme Scanner::getLexeme()
 {
 	clearBuffer();
-	int number;															// a number, encountered in the model language code
+	int number = 0;														// a number, encountered in the code
+	int decimal = 0;													// a value after decimal, encountered in the code
 	int lex;															// value of the current lexeme
 	
 	do
@@ -256,7 +269,9 @@ Lexeme Scanner::getLexeme()
 		{
 			case INIT:													// Initial state:
 				if (c == ' ' || c == '\n' || c == '\r' || c == '\t')	//   if the character is space/end of the line/new line:
+				{
 					getChar();
+				}
 				else if (isalpha(c))									//   if the character is an identifier:									
 				{
 					clearBuffer();
@@ -268,6 +283,11 @@ Lexeme Scanner::getLexeme()
 				{
 					number = c - '0';
 					currentState = NUMBER;
+					getChar();
+				}
+				else if (c == '.')
+				{
+					currentState = DECIMAL;
 					getChar();
 				}
 				else if (c == '\"')
@@ -313,7 +333,7 @@ Lexeme Scanner::getLexeme()
 				}
 				else if (c == EOF)                                      //   if the character is end of file:
 				{
-					currentState = FIN;
+					currentState = END_OF_FILE;
 				}
 				else                                                    //    else: delimeter
 				{
@@ -334,7 +354,9 @@ Lexeme Scanner::getLexeme()
 				{
 					currentState = INIT;								//     switch back to the initial state
 					if (lex)											//     if identifier in buffer has a match in a functional words table:
+					{
 						return Lexeme((lexemeType) lex, lex);			//       return its lexeme
+					}
 					else                                                //     else:
 					{
 						lex = addUniqueIdent(buf);                      //       add it to the table
@@ -347,13 +369,34 @@ Lexeme Scanner::getLexeme()
 				if (isdigit(c))                                         //   if the character is a digit:
 				{
                     int newDigit = c - '0';
-					number = 10 * number + newDigit;                    //     make it continue the number
+					number = 10 * number + newDigit;                    //     continue the number
 					getChar();
 				}
-				else                                                    //   else: the number is finalised
+				else if (c == '.')										//   if a decimal is encountered:
+				{
+					currentState = DECIMAL;								//     switch to decimal state
+					getChar();
+				}
+				else                                                    //   else: the number is finished
 				{
 					currentState = INIT;
-					return Lexeme(LEX_NUM, number);                     //     return the number as a lexeme
+					return Lexeme(LEX_INT_NUM, number);                 //     return the number as a lexeme
+				}
+				break;
+
+			case DECIMAL:												// Decimal state
+				if (isdigit(c))                                         //   if the character is a digit:
+				{
+					int newDigit = c - '0';
+					decimal = 10 * decimal + newDigit;                  //     continue the number after decimal
+					getChar();
+				}
+				else                                                    //   else: the number after decimal is finished
+				{
+					currentState = INIT;
+					int numDigitsAfterDecimal = pow(10, to_string(decimal).length());
+					double fullNumber = number + (double) decimal / numDigitsAfterDecimal;// combine the whole value with the value after decimal
+					return Lexeme(LEX_REAL_NUM, fullNumber);			//     return the number as a lexeme
 				}
 				break;
 				
@@ -391,7 +434,9 @@ Lexeme Scanner::getLexeme()
 								case '\n':								//	    string's continuation in the next line of the code
 									getChar();
 									while (c == '\t')					//		while the character is not horizontal tab used for code allignment:	
+									{
 										getChar();						//        get next character
+									}
 									ungetChar();						//		unget character that is not a tab
 									break;
 								
@@ -402,9 +447,13 @@ Lexeme Scanner::getLexeme()
 							}
 						}
 						else if (c == '\n')								//   else: if the character is an end of line:
+						{
 							lexicalError("\"");							//     lexical error: no finishing quote
+						}
 						else											//    else: the character is a part of string
+						{
 							addChar(c);									//      so add it to the buffer
+						}
 						getChar();
 					}													//   when a finishing quote is met, the string is complete
 					lex = addUniqueStrConst(buf);				    	//   add the completed string to the identifiers table
@@ -432,19 +481,29 @@ Lexeme Scanner::getLexeme()
 						currentState = INIT;
 					}
 					else
+					{
 						ungetChar();
+					}
 				}
 				if (c == EOF)
-					currentState = FIN;
+				{
+					currentState = END_OF_FILE;
+				}
 				else
+				{
 					getChar();
+				}	
 				break;
 			
 			case COMMENT_STRING:                                        // One-line comment state
 				while (c != '\n' && c != EOF)
+				{
 					getChar();
+				}
 				if (c == EOF)
-					currentState = FIN;
+				{
+					currentState = END_OF_FILE;
+				}
 				else
 				{
 					getChar();
@@ -462,7 +521,9 @@ Lexeme Scanner::getLexeme()
 					return Lexeme(LEX_NOT_EQ, lex);
 				}
 				else                                                    //   else: lexical error
+				{
 					lexicalError("!");
+				}
 				break;
 			
 			case DELIM:                                                 // Delimeter state:
@@ -501,13 +562,17 @@ Lexeme Scanner::getLexeme()
 				currentState = INIT;
 				lex = check(buf, delimTable);
 				if (lex)
-					return Lexeme((lexemeType)(lex + (int)LEX_FIN), lex);
+				{
+					return Lexeme((lexemeType)(lex + (int)LEX_EOF), lex);
+				}
 				else
+				{
 					lexicalError("'" + buf + "'");
+				}
 				break;
 				
-			case FIN:
-				return Lexeme(LEX_FIN);
+			case END_OF_FILE:
+				return Lexeme(LEX_EOF);
 				break;
 		}
 	}

@@ -15,7 +15,7 @@ public:
 	void interpret()
 	{
         parser.analyse();                                           // Conduct lexical, syntax and semantic analysis of the code. Retreive RPN vector
-		auto RPNs = parser.getRPNs();								// Retreive RPN table of the analysed code
+		auto RPNs = parser.getRPNTable();							// Retreive RPN table of the analysed code
 		executer.execute(RPNs);	                    				// Execute the analysed code
 	}
 };

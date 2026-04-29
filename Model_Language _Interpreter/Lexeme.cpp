@@ -8,7 +8,7 @@ enum lexemeType
 {
 	LEX_NULL,															// 0
 	
-	// Lexemes for lexical analysis
+	// Lexemes for functional words
 	LEX_AND,															// 1
 	LEX_BOOL,															// 2
 	LEX_BREAK,															// 3
@@ -27,54 +27,61 @@ enum lexemeType
 	LEX_OR,																// 16
 	LEX_PROGRAM,														// 17
 	LEX_READ,															// 18
-	LEX_STRING,															// 19
-	LEX_TRUE,															// 20
-	LEX_WHILE,															// 21
-	LEX_WRITE,															// 22
-	LEX_WRITELINE,														// 23
-	LEX_FIN,															// 24
+	LEX_REAL,															// 19
+	LEX_STEP,															// 20
+	LEX_STRING,															// 21
+	LEX_TRUE,															// 22
+	LEX_UNTIL,															// 23
+	LEX_WHILE,															// 24
+	LEX_WRITE,															// 25
+	LEX_WRITELINE,														// 26
 	
-	LEX_LEFT_BRACE,														// 25   1
-	LEX_RIGHT_BRACE,													// 26   2
-	LEX_QUOTE,															// 27   3
-	LEX_SEMICOLON,														// 28   4
-	LEX_COMMA,															// 29   5
-	LEX_COLON,															// 30   6
-	LEX_ASSIGN,															// 31   7
-	LEX_PLUS,															// 32   8
-	LEX_MINUS,															// 33   9
-	LEX_TIMES,															// 34   10
-	LEX_SLASH,															// 35   11
-	LEX_PERCENT,														// 36   12
-	LEX_PLUS_PLUS,														// 37   13
-	LEX_MINUS_MINUS,													// 38   14
-	LEX_PLUS_ASSIGN,													// 39   15
-	LEX_MINUS_ASSIGN,													// 40   16
-	LEX_LEFT_PAREN,														// 41   17
-	LEX_RIGHT_PAREN,													// 42   18
-	LEX_EQ,																// 43   19
-	LEX_GREATER,														// 44   20
-	LEX_LESS,															// 45   21
-	LEX_GREATER_EQ,														// 46   22
-	LEX_LESS_EQ,														// 47   23
-	LEX_NOT_EQ,															// 48   24
+	// End of file lexeme
+	LEX_EOF,															// 27
+	
+	// Lexemes for delimeters
+	LEX_LEFT_BRACE,														// 28   1
+	LEX_RIGHT_BRACE,													// 29   2
+	LEX_QUOTE,															// 30   3
+	LEX_SEMICOLON,														// 31   4
+	LEX_COMMA,															// 32   5
+	LEX_COLON,															// 33   6
+	LEX_ASSIGN,															// 34   7
+	LEX_PLUS,															// 35   8
+	LEX_MINUS,															// 36   9
+	LEX_TIMES,															// 37   10
+	LEX_SLASH,															// 38   11
+	LEX_PERCENT,														// 39   12
+	LEX_PLUS_PLUS,														// 40   13
+	LEX_MINUS_MINUS,													// 41   14
+	LEX_PLUS_ASSIGN,													// 42   15
+	LEX_MINUS_ASSIGN,													// 43   16
+	LEX_LEFT_PAREN,														// 44   17
+	LEX_RIGHT_PAREN,													// 45   18
+	LEX_EQ,																// 46   19
+	LEX_GREATER,														// 47   20
+	LEX_LESS,															// 48   21
+	LEX_GREATER_EQ,														// 49   22
+	LEX_LESS_EQ,														// 50   23
+	LEX_NOT_EQ,															// 51   24
 
-	LEX_ID,																// 49
-	LEX_NUM,															// 50
-	LEX_STR_CONST,														// 51
+	LEX_ID,																// 52
+	LEX_INT_NUM,														// 53
+	LEX_REAL_NUM,														// 54
+	LEX_STR_CONST,														// 55
 
 	// Parsing Tokens
-	LEX_UNARY_MINUS,													// 52 - Unary minus (detected by parsing)
-	LEX_PP_PRE,															// 53 - prefix '++'
-	LEX_PP_POST,														// 54 - postfix '++'
-	LEX_MM_PRE,															// 55 - prefix '--'
-	LEX_MM_POST,														// 56 - postfix '--'
+	LEX_UNARY_MINUS,													// 56 - Unary minus (detected by parsing)
+	LEX_PP_PRE,															// 57 - Prefix '++'
+	LEX_PP_POST,														// 58 - Postfix '++'
+	LEX_MM_PRE,															// 59 - Prefix '--'
+	LEX_MM_POST,														// 60 - Postfix '--'
 	
 	// Reverse Polish Notation (RPN) tokens
-    RPN_GO, 															// 57
-	RPN_FGO,															// 58
-	RPN_LABEL,  														// 59
-	RPN_ADDRESS 														// 60
+    RPN_GO, 															// 61 - RPN goto operator
+	RPN_FGO,															// 62 - RPN false goto operator (works only if the prior boolean value is false)
+	RPN_LABEL,  														// 63 - RPN goto label
+	RPN_ADDRESS, 														// 64 - Identifier table address
 };
 
 
@@ -82,10 +89,10 @@ enum lexemeType
 class Lexeme
 {
 	lexemeType type;
-	int value;
+	double value;
 	
 public:
-	Lexeme(lexemeType type=LEX_NULL, int value=0)
+	Lexeme(lexemeType type=LEX_NULL, double value=0)
     {
         this->type = type;
         this->value = value;
@@ -96,14 +103,15 @@ public:
 		return type;
 	}
 	
-	int getValue() const
+	double getValue() const
 	{
 		return value;
 	}
 
-	friend ostream& operator << (ostream &out, Lexeme l)
+	// Debug
+	friend ostream& operator << (ostream &out, Lexeme lex)
 	{
-		out << '(' << l.type << ',' << l.value << "); ";
+		out << '(' << lex.type << ',' << lex.value << "); ";
 		return out;
 	}
 };

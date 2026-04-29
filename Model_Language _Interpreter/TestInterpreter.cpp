@@ -5,12 +5,35 @@
 
 using namespace std;
 
+string getFileName()
+{ 
+	string fileName;
+	cout << "Enter code file name: ";
+	cin >> fileName;
+	string ext = fileName.substr(fileName.find(".") + 1);
+	while (ext != "mdl")
+	{
+		cout << "Unsupported file extension \"." << ext << "\". Please try a different file.\n" << endl;
+		cout << "Enter code file name: ";
+		cin >> fileName;
+		ext = fileName.substr(fileName.find(".") + 1);
+	}
+	ifstream f(fileName);
+	if (!f.good())
+	{
+		cout << "Cannot open file \'" << fileName << "\'. Please try again.\n" << endl;
+		fileName = getFileName();
+	}
+	return fileName;
+}
+
 void getExpectedResults(int testNumber)
 {
 	int x, y, z, i, j;
+	double d;
 
-	cout << "No lexical, syntax or semantic issues. Your program is flawless.\n";
-	cout << "Beginning execution...\n\n";
+	//cout << "No lexical, syntax or semantic issues. Your program is flawless.\n";
+	//cout << "Beginning execution...\n\n";
 	switch (testNumber)
 	{
 		case 0:
@@ -19,25 +42,27 @@ void getExpectedResults(int testNumber)
 		
 		case 1:
 			cout << "Enter any integer value: *your int here*" << "\n\n"
+				 << "Enter any real value: *your real here*" << "\n\n"
 				 << "Enter any string value: *your string here*" << "\n\n"
-				 << "Enter any boolean value: *your bool here*" << "\n\n"
+				 << "Enter any boolean value ('true' or 'false'): *your bool here*" << "\n\n"
 				 << "Your integer value: *your int here*" << '\n'
+				 << "Your real value: *your real here*" << '\n'
 				 << "Your string value: *your string here*" << '\n'
 				 << "Your boolean value: *your bool here*" << '\n';
 			break;
 
 		case 2:
 			cout << "Logical addition:\n";
-			cout << "  " << true << " OR " << true << " = " << true || true << '\n';
-			cout << "  " << true << " OR " << false << " = " << true || false << '\n';
-			cout << "  " << false << " OR " << true << " = " << false || true << '\n';
-			cout << "  " << false << " OR " << false << " = " << false || false << '\n';
+			cout << "  " << true << " OR " << true << " = " << (true || true) << "\n";
+			cout << "  " << true << " OR " << false << " = " << (true || false) << "\n";
+			cout << "  " << false << " OR " << true << " = " << (false || true) << "\n";
+			cout << "  " << false << " OR " << false << " = " << (false || false) << "\n";
 
 			cout << "\nLogical multiplication:\n";
-			cout << "  " << true << " AND " << true << " = " << true && true << '\n';
-			cout << "  " << true << " AND " << false << " = " << true && false << '\n';
-			cout << "  " << false << " AND " << true << " = " << false && true << '\n';
-			cout << "  " << false << " AND " << false << " = " << false && false << '\n';
+			cout << "  " << true << " AND " << true << " = " << (true && true) << "\n";
+			cout << "  " << true << " AND " << false << " = " << (true && false) << "\n";
+			cout << "  " << false << " AND " << true << " = " << (false && true) << "\n";
+			cout << "  " << false << " AND " << false << " = " << (false && false) << "\n";
 			
 			cout << "\nLogical reverse:\n";
 			cout << "  not " << true << " = " << !true << '\n';
@@ -70,7 +95,8 @@ void getExpectedResults(int testNumber)
 				x = x + 2;
 				y = y - 1;
 			}
-			cout << "x = " << x << "\ny = " << y << "\n\n";
+			cout << "x = " << x << "\ny = " << y << "\n";
+			cout << "\n";
 
 			while ((x >= 5) && (y < 20))
 			{
@@ -83,27 +109,79 @@ void getExpectedResults(int testNumber)
 		case 5:
 			x = 10;
 			y = 10;
-			for (int i=0; i<x; i++)
+			do
+			{
+				x = x + 2;
+				y = y - 1;
+			}
+			while ((x <= 30) || (y > 5));
+			cout << "x = " << x << "\ny = " << y << "\n";
+			cout << "\n";
+
+			do
 			{
 				x = x - 2;
 				y = y + 1;
 			}
+			while ((x >= 5) && (y < 20));
 			cout << "x = " << x << "\ny = " << y << '\n';
 			break;
 
 		case 6:
-			x = 5;
-			i = 1;
-			for (; i<=9999; i++)
+			x = 10;
+			y = 10;
+			for(int i=0; i<x; i++)
 			{
-				x = x * 2;
-				if (x > 100)
-					break;
+				x = x - 2;
+				y = y + 1;
+				cout << "Iteration " << i << ": x = " << x << ", y = " << y << "\n";
 			}
-			cout << "x = " << x << "\ni = " << i << '\n';
+			cout << "Final result: x = " << x << ", y = " << y << "\n";
 			break;
 
 		case 7:
+			x = 10;
+			y = 10;
+			i = 0;
+			while (i < x)
+			{
+				x = x - 2;
+				y = y + 1;
+				cout << "Iteration " << i << ": x = " << x << ", y = " << y << "\n";
+				++i;
+			}
+			cout << "Final result: x = " << x << ", y = " << y << "\n";
+			break;
+
+		case 8:
+			x = 5;
+			for (i=0; i<=9999; i++)
+			{
+				x = x * 2;
+				if (i >= 5)
+					break;
+			}
+			cout << "x = " << x << "\n";
+			cout << "i = " << i << "\n";
+			cout << "\n";
+
+			x = 0; 
+			for (j=0; j<10; j++)
+			{
+				x = x + 2;
+				for (i=0; i<=9999; i++)
+				{
+					x = x + 2;
+					if (i >= 5)
+						break;
+				}
+			}
+			cout << "x = " << x << "\n";
+			cout << "i = " << i << "\n";
+			cout << "j = " << j << "\n";
+			break;
+
+		case 9:
 			x = 5;
 			y = 7;
 			z = 8;
@@ -118,7 +196,7 @@ void getExpectedResults(int testNumber)
 				goto Label;	
 			break;
 
-		case 8:
+		case 10:
 			cout << "Uncommented section\nStart:\n";
 			x = 10;
 			y = 10;
@@ -132,23 +210,47 @@ void getExpectedResults(int testNumber)
 			cout << "End\n\n";
 			cout << "Commented section\nStart:\n";
 
-		//	cout << "This is a commented section!\n";
+			//	cout << "This is a commented section!\n";
 
-		/*	
+			/*	
 			if(x < 5)
 				x = x + 1;
 			else
 				x = x - 1;
 			cout << "x = " << x << "\ny = " << y << "\nz = " << z << '\n';
-		*/
+			*/
 
 			cout << "End\n";
+			break;
+
+		case 11:
+			x = 1;
+			x++; 
+			cout << "x = 1, x++ = "<< x << "\n";
+			x--;
+			cout << "x = 2, x-- = "<< x << "\n";
+
+			++x;
+			cout << "x = 1, ++x = "<< x << "\n";
+			--x;
+			cout << "x = 2, --x = "<< x << "\n";
+			cout << "\n";
+
+			y = 5 + x++;
+			cout << "x = 1, (5 + x++) = "<< y << "\n";
+			y = 5 + x--;
+			cout << "x = 2, (5 + x--) = "<< y << "\n";
+
+			y = 5 + ++x;
+			cout << "x = 1, (5 + ++x) = "<< y << "\n";
+			y = 5 + --x;
+			cout << "x = 2, (5 + --x) = "<< y << "\n";
 			break;
 
 		default:
 			break;
 	}
-	cout << "\nExecution complete!\n";
+	//cout << "\nExecution complete!\n";
 }
 
 
@@ -156,27 +258,33 @@ int main()
 {
 	string programName;
 	string tests[] = {
-		"tests\\write_test",
-		"tests\\read_test",
-		"tests\\bool_test",
-		"tests\\if_test",
-		"tests\\while_test",
-		"tests\\for_test",
-		"tests\\break_test",
-		"tests\\goto_test",
-		"tests\\comment_test",
+		"tests\\write_test.mdl",
+		"tests\\read_test.mdl",
+		"tests\\bool_test.mdl",
+		"tests\\if_test.mdl",
+		"tests\\while_test.mdl",
+		"tests\\do_while_test.mdl",
+		"tests\\for_test.mdl",
+		"tests\\for_step_test.mdl",
+		"tests\\break_test.mdl",
+		"tests\\goto_test.mdl",
+		"tests\\comment_test.mdl",
+		"tests\\unary_test.mdl",
 
-		"tests/write_test",
-		"tests/read_test",
-		"tests/bool_test",
-		"tests/if_test",
-		"tests/while_test",
-		"tests/for_test",
-		"tests/break_test",
-		"tests/goto_test",
-		"tests/comment_test"
+		"tests/write_test.mdl",
+		"tests/read_test.mdl",
+		"tests/bool_test.mdl",
+		"tests/if_test.mdl",
+		"tests/while_test.mdl",
+		"tests/do_while_test.mdl",
+		"tests/for_test.mdl",
+		"tests/for_step_test.mdl",
+		"tests/break_test.mdl",
+		"tests/goto_test.mdl",
+		"tests/comment_test.mdl",
+		"tests/unary_test.mdl"
 	};
-	int amount = 9;
+	int amount = 12;
 	bool isTest = 0;
 	int testNum;
 	char input;
@@ -185,17 +293,7 @@ int main()
 //======================================ACTUAL RESULT======================================
 	
 	system("cls");
-	cout << "Enter code file name: ";
-	cin >> programName;
-
-	ifstream f(programName);
-	while (!f.good())
-	{
-		cout << "Cannot open file \'" << programName << "\'. Please try again.\n" << endl;
-		cout << "Enter code file name: ";
-		cin >> programName;
-		f = ifstream(programName);
-	}
+	programName = getFileName();
 
 	for (int i=0; i<amount*2; i++)
 	{

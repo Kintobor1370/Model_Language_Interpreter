@@ -3,7 +3,8 @@ program
 
 	int x = 10;
 	int y = 10;
-	for(int i=0; i<x; i++)
+	int i;
+	for i=0 step ++i until i>=x do
 	{
 		x = x - 2;
 		y = y + 1;

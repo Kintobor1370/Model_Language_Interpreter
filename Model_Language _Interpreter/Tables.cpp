@@ -13,7 +13,7 @@ class Identifier
 	
 	bool declared;														// identificator that identifier is already declared
 	bool assigned;														// identificator that identifier is already assigned a value
-	int value;
+	double value;
 	string strValue;
 	
 	bool label;															// identificator that identifier is a label
@@ -66,7 +66,7 @@ public:
 		assigned = true;
 	}
 	
-	int getValue()
+	double getValue()
 	{
 		return value;
 	}
@@ -76,7 +76,7 @@ public:
 		return strValue;
 	}
 	
-	void setValue(int newValue)
+	void setValue(double newValue)
 	{
 		value = newValue;
 	}
@@ -109,19 +109,19 @@ public:
 };
 
 //_______________________________________________________TABLES________________________________________________________
-vector <Identifier> identTable;											// Identifiers table (vectorised)
-vector <string> strConstTable;	    									// String constants table (vectorised)
+vector<Identifier> idTable;												// Identifiers table (vectorised)
+vector<string> strConstTable;	    									// String constants table (vectorised)
 
 // Filling the identifier table with unique entries
 int addUniqueIdent(const string name)
 {
 	auto isPresent = [name](Identifier id) { return id.getName() == name; };
-    auto it = std::find_if(identTable.begin(), identTable.end(), isPresent);
+    auto it = std::find_if(idTable.begin(), idTable.end(), isPresent);
         
-    if (it != identTable.end())                                         // if an identifier with this name is already present in the table:
-        return distance(identTable.begin(), it);                        // return its position in the table
-    identTable.push_back(Identifier(name));				  				// else: add the ID in the end of the table
-    return identTable.size() - 1;							    	    // and return its position
+    if (it != idTable.end())                                        	// if an identifier with this name is already present in the table:
+        return distance(idTable.begin(), it);                       	// return its position in the table
+    idTable.push_back(Identifier(name));				  				// else: add the ID in the end of the table
+    return idTable.size() - 1;							    	    	// and return its position
 }
 
 // Filling the sting constants table with unique entries
@@ -138,6 +138,61 @@ int addUniqueStrConst(const string str)
 // Clear both tables
 void clearTables()
 {
-	identTable.clear();
+	idTable.clear();
 	strConstTable.clear();
+}
+
+// Operation rules table
+class OperationTable
+{
+	vector<lexemeType> opRealMath = { LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH };
+	vector<lexemeType> opIntMath = { LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH, LEX_PERCENT };
+	vector<lexemeType> stringConcat = { LEX_PLUS };
+	vector<lexemeType> numCompare = { LEX_GREATER, LEX_LESS, LEX_GREATER_EQ, LEX_LESS_EQ, LEX_EQ, LEX_NOT_EQ };
+	vector<lexemeType> stringCompare = { LEX_GREATER, LEX_LESS, LEX_EQ, LEX_NOT_EQ };
+	vector<lexemeType> opBool = { LEX_OR, LEX_AND };
+
+	struct opTableKey
+	{
+		vector<lexemeType> opers;
+		lexemeType opX;
+		lexemeType opY;
+	};
+
+	vector<pair<opTableKey, lexemeType>> opTable =
+	{
+		{ { opIntMath, LEX_INT, LEX_INT }, LEX_INT },
+		{ { opRealMath, LEX_REAL, LEX_REAL }, LEX_REAL },
+		{ { opRealMath, LEX_INT, LEX_REAL }, LEX_REAL },
+		{ { opRealMath, LEX_REAL, LEX_INT }, LEX_REAL },
+		{ { stringConcat, LEX_STRING, LEX_STRING }, LEX_STRING },
+		{ { numCompare, LEX_INT, LEX_INT }, LEX_BOOL },
+		{ { numCompare, LEX_REAL, LEX_REAL }, LEX_BOOL },
+		{ { numCompare, LEX_INT, LEX_REAL }, LEX_BOOL },
+		{ { numCompare, LEX_REAL, LEX_INT }, LEX_BOOL },
+		{ { stringCompare, LEX_STRING, LEX_STRING }, LEX_BOOL },
+		{ { opBool, LEX_BOOL, LEX_BOOL }, LEX_BOOL }
+	};
+
+public:
+	OperationTable() {}
+	lexemeType getResultType(lexemeType opX, lexemeType opY, lexemeType oper);
+};
+
+lexemeType OperationTable::getResultType(lexemeType opX, lexemeType opY, lexemeType oper)
+{
+	auto isPresent = [opX, opY, oper](pair<opTableKey, lexemeType> entry)
+	{
+		vector<lexemeType> allowedOperators = entry.first.opers;
+		auto operIt = find(allowedOperators.begin(), allowedOperators.end(), oper);
+		bool operatorIsAllowed = operIt != allowedOperators.end();
+		return opX == entry.first.opX && opY == entry.first.opY && operatorIsAllowed;
+	};
+	auto it = find_if(opTable.begin(), opTable.end(), isPresent);
+	if (it != opTable.end())
+	{
+		lexemeType resType = opTable.at(it - opTable.begin()).second;
+		return resType;
+	}
+	return LEX_NULL;
 }
