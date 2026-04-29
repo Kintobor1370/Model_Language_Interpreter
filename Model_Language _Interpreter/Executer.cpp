@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stack>
-#include "RPN_Generator.cpp"
+#include "Parser.cpp"
 
 using namespace std;
 
