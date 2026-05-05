@@ -38,9 +38,9 @@ class Parser
 	vector<Lexeme> RPNTable;                                            // Reverse Polish Notation (RPN) table (vectorised)
     
     stack<lexemeType> lexStack;
-    Lexeme lex;                                                         // Current lexeme
-	lexemeType type;                                                    // Current lexeme's type
-	int val;                                                            // Current lexeme's value
+    Lexeme currLex;                                                     // Current lexeme
+	lexemeType currType;                                                // Type of the current lexeme
+	int currVal;                                                        // Value of the current lexeme
 	
 	bool loopState;														// Indicator that the program iscurrently in loop state
 	int nestedLoopsCount;												// Number of nested loops (-1 : no loop state; 0 : no nested loops; >= 1 : >= 1 nested loops)
@@ -53,10 +53,10 @@ class Parser
 	};
 	stack<breakStackItem> breakStack;						    		// Stack for break operators (Stack item consists of label's position in RPN and number of a nested loop containing the break operator)
 	
-	stack<int> plusStack;
-	stack<int> minusStack;
-	stack<int> lvalueUncertainStack;
-	int num;
+	stack<int> plusStack;												// Stack for postfix '++' operations
+	stack<int> minusStack;												// Stack for postfix '--' operations
+	stack<int> lvalueUncertainStack;									// Stack of identifiers unconfirmed to be lvalue
+	int lvalueUncertainIndex;											// Index of the identifiers unconfirmed to be lvalue in the RPN table
 	
 	bool isAssignment;													// Indicator that current operation is an assignment
 
@@ -73,35 +73,35 @@ class Parser
 	void CODE_BLOCK();													// Code block of the program
 	void OP();															// Operator
 	void OP_STMNT();													// Statement operator
-	void STMNT(bool operand=true);										// Statement
+	void STMNT(bool lvalue = true);										// Statement
 	void ADD();															// Additive state
 	void MULTI();														// Multiplicative state
 	void FIN();															// Final state
 	
 	// Semantic actions
 	void setVar();
-	void idCheck(int value);
-	void identReadCheck();
-	void operationCheck();
-	void unaryOperationCheck();
-	void notCheck();
-	void assignEqualTypeCheck();
-	void conditionEqualTypeCheck();
+	void checkIdDeclared(int value);
+	void checkIdInRead();
+	void checkOperationType();
+	void checkUnaryOperation();
+	void checkNot();
+	void checkTypeInAssign();
+	void checkTypeInCondition();
+	void checkBreak();
+	void checkGoto();
 	void breakControllerOn();
 	void breakControllerOff();
-	void breakCheck();
-	void gotoCheck();
 	
-	// Convert unary operation to RPN
+	// Convert unary operation to RPN (e.g.: x++ => x x 1 + =)
 	void unaryOperationToRPN();
 	
 	// Get the next lexeme
 	void getLexeme()
 	{
-		lex = scanner.getLexeme();          							// The scanner gets a lexeme
-		type = lex.getType();					                		// Get type of the lexeme
-		val = lex.getValue();					        		        // Get value of the lexeme
-		//cout << lex << "\n";
+		currLex = scanner.getLexeme();          						// The scanner gets a lexeme
+		currType = currLex.getType();					                // Get type of the lexeme
+		currVal = currLex.getValue();					        		// Get value of the lexeme
+		//cout << currLex << "\n";
 	}
 	
 	// Syntax error processing
@@ -113,7 +113,7 @@ class Parser
 		}
 		catch(string s)
 		{
-			cout << "[SYNTAX ERROR #" << errNumber << "] " << s << "\nLexeme: " << lex << endl;
+			cout << "[SYNTAX ERROR #" << errNumber << "] " << s << "\nLexeme: " << currLex << endl;
 			exit(1);
 		}
 	}
@@ -141,7 +141,7 @@ class Parser
 		}
 		catch(string s)
 		{
-			cerr << "[WARNING] " << s << endl << endl;
+			cout << "[SEMANTIC WARNING] " << s << endl;
 		}
 	}
 	
@@ -159,7 +159,7 @@ public:
         return RPNTable;
     }
 	
-	void analyse();
+	void validateProgram();
 };
 
 
@@ -173,14 +173,14 @@ void extract(T1& stack, T2& item)
 }
 
 
-void Parser::analyse()
+void Parser::validateProgram()
 {
 	clearTables();
 	RPNTable.clear();
 
 	getLexeme();
 	HEADER();
-	if (type != LEX_EOF)
+	if (currType != LEX_EOF)
 	{
 		syntaxError(													// Syntax error #1
 			1,
@@ -194,48 +194,48 @@ void Parser::analyse()
 // Analyse code starting from the program's header
 void Parser::HEADER()
 {
-	if (type == LEX_PROGRAM)								    		// if first lexeme is program's header:
+	if (currType == LEX_PROGRAM)								    	// if first lexeme is program's header:
 	{
 		getLexeme();													//   get next lexeme
-		if (type == LEX_LEFT_BRACE)										// if next lexeme is left brace:
+		if (currType == LEX_LEFT_BRACE)									// if next lexeme is left brace:
 		{
 			getLexeme();												//   get next lexeme
 			CODE_BLOCK();												//   analyse code block
-			gotoCheck();
+			checkGoto();
 		}
 		else															// else:
 		{
-			syntaxError(3, "Did you forget '{'?");						// Syntax error #3
+			syntaxError(2, "Did you forget '{'?");						// Syntax error #2
 		}
 	}
 	else 																// else:
 	{
-		syntaxError(2, "Did you forget 'program'?");					// Syntax error #2
+		syntaxError(3, "Did you forget 'program'?");					// Syntax error #3
 	}
 }
 
-// Descriptions analysis
+// Variable descriptions analysis
 void Parser::DESCS()
 {
 	DESC();
-	if (type != LEX_SEMICOLON)						    				// if lexeme following the description is not semicolon:
+	if (currType != LEX_SEMICOLON)						    			// if lexeme following the variable description is not semicolon:
 	{
 		syntaxError(4, "Did you forget ';'?");							// Syntax error #4
 	}
 	getLexeme();
 }
 
-// Single description analysis
+// Single variable description analysis
 void Parser::DESC()
 { 
-	lexemeType identType = type;						    			// save the type of variable to be described further (to assing a value of the same type when required)
-	lexStack.push(identType);			    							// push this type to lexemes stack
+	lexemeType idType = currType;							    		// save the type of variable to be described further (to assing a value of the same type when required)
+	lexStack.push(idType);				    							// push this type to lexemes stack
 	getLexeme();
 	VAR();																// analyse the variable
-	while (type == LEX_COMMA)			    							// while next lexeme is "," (i.e. while variables of the same type are being declared)
+	while (currType == LEX_COMMA)			    						// while next lexeme is "," (i.e. while variables of the same type are being declared)
 	{
-		lexStack.push(identType);		    							//   push said type to lexemes stack once again
-		getLexeme();
+		lexStack.push(idType);		    								//   push said type to lexemes stack once again
+		getLexeme();	
 		VAR();															//   analyse next variable of the same type
 	}
 }
@@ -243,13 +243,13 @@ void Parser::DESC()
 // Variable analysis
 void Parser::VAR()
 {
-	if (type == LEX_ID)										
+	if (currType == LEX_ID)										
 	{
 		setVar();														// assign this lexeme its type (recently saved in lexemes stack)
-		RPNTable.push_back(Lexeme(RPN_ADDRESS, val));					// add the lexeme to the RPN table
+		RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));				// add the lexeme to the RPN table
 		getLexeme();
 		
-		if(type == LEX_ASSIGN)											// if the identifier above is being assigned a constant value
+		if(currType == LEX_ASSIGN)										// if the identifier above is being assigned a constant value
 		{
 			isAssignment = true;
             getLexeme();
@@ -261,13 +261,16 @@ void Parser::VAR()
 			RPNTable.pop_back();
 		}
 
-		if (type == LEX_COMMA || type == LEX_SEMICOLON)		            // if the next lexeme is comma or semicolon:
-		{
-			lexStack.pop(); 											//		remove variable type from the lexemes stack 
+		if (
+			currType == LEX_COMMA || 									// if the next lexeme is comma
+			currType == LEX_SEMICOLON || 								// or semicolon
+			currType == LEX_STEP										// or 'step' (required for 'for ... step ... until ... do' operator):
+		) {
+			lexStack.pop(); 											//   remove variable type from the lexemes stack 
 		}
 		else
 		{
-			syntaxError(5, "Wrong deliminator. Only '=' is allowed");	// Syntax error #5
+			syntaxError(5, "Illegal deliminator. Only '=' is allowed");	// Syntax error #5
 		}
 	}
 	else																// if the lexeme is NOT an identifier:		
@@ -279,11 +282,15 @@ void Parser::VAR()
 // Constant value analysis
 void Parser::CONST()
 {
-	auto currType = lexStack.top();
-	if (currType == LEX_INT || currType == LEX_REAL || currType == LEX_STRING || currType == LEX_BOOL)
-	{
+	auto constType = lexStack.top();
+	if (
+		constType == LEX_INT || 
+		constType == LEX_REAL || 
+		constType == LEX_STRING || 
+		constType == LEX_BOOL
+	) {
         STMNT(false);
-        assignEqualTypeCheck();
+        checkTypeInAssign();
     }
 	else
 	{
@@ -294,10 +301,10 @@ void Parser::CONST()
 // Analysis of multiple operators
 void Parser::CODE_BLOCK()
 {
-	while (type != LEX_RIGHT_BRACE)
+	while (currType != LEX_RIGHT_BRACE)
 	{
 		OP();
-		if (type == LEX_EOF)
+		if (currType == LEX_EOF)
 		{
 			syntaxError(8, "Did you forget '}'?");						// Syntax error #8
 		}
@@ -314,32 +321,34 @@ void Parser::OP()
 	int pos3;
 	int pos4;
 	
-	switch (type)
+	switch (currType)
 	{
-		case LEX_INT: case LEX_REAL: case LEX_BOOL: case LEX_STRING:	// Description of identifiers
+		// Identifier descriptions
+		case LEX_INT: case LEX_REAL: case LEX_BOOL: case LEX_STRING:
 			DESCS();
 			break;
 			
-		case LEX_IF:													// if() operator
+		// Conditional statement
+		case LEX_IF:
 			getLexeme();
 
-			if (type == LEX_LEFT_PAREN)
+			if (currType == LEX_LEFT_PAREN)
 			{
 				getLexeme();
 				STMNT();
-				conditionEqualTypeCheck();
+				checkTypeInCondition();
 
 				pos2 = RPNTable.size();
 				RPNTable.push_back(Lexeme());
-				RPNTable.push_back(Lexeme(RPN_FGO));
+				RPNTable.push_back(Lexeme(RPN_GO_FALSE));
 				
-				if (type == LEX_RIGHT_PAREN)
+				if (currType == LEX_RIGHT_PAREN)
 				{
 					getLexeme();
 					OP();
 					RPNTable[pos2] = Lexeme(RPN_LABEL, RPNTable.size());
 					
-					if (type == LEX_ELSE)
+					if (currType == LEX_ELSE)
 					{
 						pos3 = RPNTable.size();
 						RPNTable.push_back(Lexeme());
@@ -352,73 +361,36 @@ void Parser::OP()
 				}
 				else
 				{
-					syntaxError(										// Syntax error #10
-						10,
+					syntaxError(										// Syntax error #9
+						9,
 						"'if' expression: did you forget ')' ?"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #9
-					9,
+				syntaxError(											// Syntax error #10
+					10,
 					"'if' expression: expected '(' after 'if'"
 				);
 			}
 			break;
-			/*
-			if (type != LEX_LEFT_PAREN)
-			{
-				syntaxError(											// Syntax error #9
-					9,
-					"'if' expression: expected '(' after 'if'"
-				);
-			}	
-			getLexeme();
-			STMNT();
-			conditionEqualTypeCheck();
-
-			pos2 = RPNTable.size();
-			RPNTable.push_back(Lexeme());
-			RPNTable.push_back(Lexeme(RPN_FGO));
-			
-			if (type != LEX_RIGHT_PAREN)
-			{
-				syntaxError(											// Syntax error #10
-					10,
-					"'if' expression: did you forget ')' ?"
-				);
-			}
-			getLexeme();
-			OP();
-			RPNTable[pos2] = Lexeme(RPN_LABEL, RPNTable.size());
-			
-			if (type == LEX_ELSE)
-			{
-				pos3 = RPNTable.size();
-				RPNTable.push_back(Lexeme());
-				RPNTable.push_back(Lexeme(RPN_GO));
-				RPNTable[pos2] = Lexeme(RPN_LABEL, RPNTable.size());
-                getLexeme();
-				OP();
-				RPNTable[pos3] = Lexeme(RPN_LABEL, RPNTable.size());
-			}
-			break;*/
 		
-		case LEX_WHILE:													// while() loop
+		// 'while()' loop
+		case LEX_WHILE:
 			pos0 = RPNTable.size();
 			getLexeme();
 
-			if (type == LEX_LEFT_PAREN)
+			if (currType == LEX_LEFT_PAREN)
 			{
 				getLexeme();
 				STMNT();
-				conditionEqualTypeCheck();
-				if (type == LEX_RIGHT_PAREN)
+				checkTypeInCondition();
+				if (currType == LEX_RIGHT_PAREN)
 				{
 					pos1 = RPNTable.size(); 
 					RPNTable.push_back(Lexeme());
-					RPNTable.push_back(Lexeme(RPN_FGO));
+					RPNTable.push_back(Lexeme(RPN_GO_FALSE));
 					
 					breakControllerOn();								// break operators processing in RPN table is also done via breakController (0 = off, 1 = on)
 					getLexeme();
@@ -432,21 +404,22 @@ void Parser::OP()
 				}
 				else
 				{
-					syntaxError(										// Syntax error #12
-						12,
+					syntaxError(										// Syntax error #11
+						11,
 						"'while' expression: did you forget ')' ?"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #11
-					11,
+				syntaxError(											// Syntax error #12
+					12,
 					"'while' expression: expected '(' after 'while'"
 				);
 			}
 			break;
 		
+		// 'do { ... } while();' loop
 		case LEX_DO:
 			pos0 = RPNTable.size();
 			breakControllerOn();	
@@ -454,22 +427,22 @@ void Parser::OP()
 			OP();
             breakControllerOff();
 
-			if (type == LEX_WHILE)
+			if (currType == LEX_WHILE)
 			{
 				getLexeme();
-				if (type == LEX_LEFT_PAREN)
+				if (currType == LEX_LEFT_PAREN)
 				{
 					getLexeme();
 					STMNT();
-					conditionEqualTypeCheck();	
-					if (type == LEX_RIGHT_PAREN)
+					checkTypeInCondition();	
+					if (currType == LEX_RIGHT_PAREN)
 					{
 						getLexeme();
-						if (type == LEX_SEMICOLON)
+						if (currType == LEX_SEMICOLON)
 						{
 							pos1 = RPNTable.size(); 
 							RPNTable.push_back(Lexeme());
-							RPNTable.push_back(Lexeme(RPN_FGO));
+							RPNTable.push_back(Lexeme(RPN_GO_FALSE));
 							RPNTable.push_back(Lexeme(RPN_LABEL, pos0));
 							RPNTable.push_back(Lexeme(RPN_GO));
 							RPNTable[pos1] = Lexeme(RPN_LABEL, RPNTable.size());
@@ -477,50 +450,67 @@ void Parser::OP()
 						}
 						else
 						{
-							syntaxError(								// Syntax error #40
-								40,
+							syntaxError(								// Syntax error #13
+								13,
 								"'do-while' expression: did you forget ';' ?"
 							);
 						}
 					}
 					else
 					{
-						syntaxError(									// Syntax error #39
-							39,
+						syntaxError(									// Syntax error #14
+							14,
 							"'while' expression: did you forget ')' ?"
 						);
 					}
 				}
 				else
 				{
-					syntaxError(										// Syntax error #38
-						38,
+					syntaxError(										// Syntax error #15
+						15,
 						"'do-while' expression: expected '(' after 'while'"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #37
-					37,
+				syntaxError(											// Syntax error #16
+					16,
 					"'do-while' expression: expected 'while' after the code block"
 				);
 			}
 			break;
 
-		case LEX_FOR:													// for loops
+		// 'for(...; ...; ..)' loop or 'for ... step ... until ... do' loop
+		case LEX_FOR:
 			getLexeme();
 
-			if (type == LEX_LEFT_PAREN)
-			{															// for(;;) loop
+			// 'for(...; ...; ..)' loop
+			if (currType == LEX_LEFT_PAREN)
+			{
 				getLexeme();
 
 				// for(<analysing this part>; ...; ...)
-				if (type != LEX_SEMICOLON)
+				if (currType != LEX_SEMICOLON)
 				{
-					if (type == LEX_INT || type == LEX_REAL || type == LEX_BOOL || type == LEX_STRING)
-					{
-						DESCS();										// the first part of 'for' loop initialisation can be either a variable declaration (always assigning it a cretain value)
+					if (
+						currType == LEX_INT || 
+						currType == LEX_REAL || 
+						currType == LEX_BOOL || 
+						currType == LEX_STRING
+					) {
+						DESC();											// the first part of 'for' loop initialisation can be either a variable declaration (always assigning it a cretain value)
+						if (currType == LEX_SEMICOLON)
+						{
+							getLexeme();
+						}
+						else
+						{
+							syntaxError(								// Syntax error #17
+								17, 
+								"'for' expression: ';' between first two statements is missing"
+							);
+						}
 					}
 					else
 					{
@@ -534,14 +524,14 @@ void Parser::OP()
 				pos3 = RPNTable.size();
 				
 				// for(...; <analysing this part>; ...)
-				if (type != LEX_SEMICOLON)	
+				if (currType != LEX_SEMICOLON)	
 				{
 					STMNT();
-					conditionEqualTypeCheck();
-					if (type != LEX_SEMICOLON)
+					checkTypeInCondition();
+					if (currType != LEX_SEMICOLON)
 					{
-						syntaxError(										// Syntax error #14
-							14, 
+						syntaxError(									// Syntax error #18
+							18, 
 							"'for' expression: ';' between last two statements is missing"
 						);
 					}
@@ -553,29 +543,31 @@ void Parser::OP()
 				
 				pos1 = RPNTable.size();
 				RPNTable.push_back(Lexeme());
-				RPNTable.push_back(Lexeme(RPN_FGO));
+				RPNTable.push_back(Lexeme(RPN_GO_FALSE));
 				
 				pos2 = RPNTable.size();
 				RPNTable.push_back(Lexeme());
 				RPNTable.push_back(Lexeme(RPN_GO));
 				pos4 = RPNTable.size();
 				
-				//    for(...; ...; <analysing this part>)
+				// for(...; ...; <analysing this part>)
 				getLexeme();
-				if (type != LEX_RIGHT_PAREN)
+				if (currType != LEX_RIGHT_PAREN)
 				{
 					isAssignment = false;
 					STMNT();
-					if (type != LEX_RIGHT_PAREN)
+					if (currType == LEX_RIGHT_PAREN)
 					{
-						syntaxError(										// Syntax error #15
-							15, 
+						RPNTable.push_back(Lexeme(RPN_LABEL, pos3));
+						RPNTable.push_back(Lexeme(RPN_GO));
+					}
+					else
+					{
+						syntaxError(									// Syntax error #19
+							19, 
 							"'for' expression: did you forget ')' ?"
 						);
 					}
-
-					RPNTable.push_back(Lexeme(RPN_LABEL, pos3));
-					RPNTable.push_back(Lexeme(RPN_GO));
 				}
 				getLexeme();
 				RPNTable[pos2] = Lexeme(RPN_LABEL, RPNTable.size());
@@ -589,27 +581,29 @@ void Parser::OP()
 				
 				breakControllerOff();
 			}
+
+			// 'for ... step ... until ... do' loop
 			else
-			{																// for-step-until loop
+			{
 				// for <analysing this part> step ... until ... do
-				if (type != LEX_STEP)
+				if (currType != LEX_STEP)
 				{
-					if (type == LEX_INT || type == LEX_REAL || type == LEX_BOOL || type == LEX_STRING)
+					if (currType == LEX_INT || currType == LEX_REAL || currType == LEX_BOOL || currType == LEX_STRING)
 					{
-						DESCS();											// the first part of a 'for' loop initialisation can be either a variable declaration
-					}														// (always assigning it a cretain value)
+						DESC();											// the first part of a 'for' loop initialisation can be either a variable declaration
+					}													// (always assigning it a cretain value)
 					else
 					{
-						STMNT();											// or a statement
+						STMNT();										// or a statement
 					}
-					if (type == LEX_STEP)
+					if (currType == LEX_STEP)
 					{
 						getLexeme();
 					}
 					else
 					{
-						syntaxError(										// Syntax error #14
-							14, 
+						syntaxError(									// Syntax error #20
+							20, 
 							"'for' expression: did you forget 'step' ?"
 						);
 					}
@@ -620,7 +614,7 @@ void Parser::OP()
 				pos1 = RPNTable.size();
 
 				// for ... step <analysing this part> until ... do
-				if (type == LEX_UNTIL)	
+				if (currType == LEX_UNTIL)	
 				{
 					getLexeme();
 				} 
@@ -628,21 +622,21 @@ void Parser::OP()
 				{
 					isAssignment = false;
 					STMNT();
-					if (type == LEX_UNTIL)
+					if (currType == LEX_UNTIL)
 					{
 						getLexeme();
 					}
 					else
 					{
-						syntaxError(										// Syntax error #14
-							14, 
+						syntaxError(									// Syntax error #21
+							21, 
 							"'for' expression: 'until' between last two statements is missing"
 						);
 					}
 				}
 				
 				// for ... step ... until <analysing this part> do
-				if (type == LEX_DO)
+				if (currType == LEX_DO)
 				{
 					RPNTable.push_back(Lexeme(LEX_TRUE, 1));
 					getLexeme();
@@ -651,15 +645,15 @@ void Parser::OP()
 				{
 					isAssignment = false;
 					STMNT();
-					conditionEqualTypeCheck();
-					if (type == LEX_DO)
+					checkTypeInCondition();
+					if (currType == LEX_DO)
 					{
 						getLexeme();
 					}
 					else
 					{
-						syntaxError(										// Syntax error #15
-							15, 
+						syntaxError(									// Syntax error #22
+							22, 
 							"'for' expression: did you forget 'do' ?"
 						);
 					}
@@ -667,7 +661,7 @@ void Parser::OP()
 
 				pos2 = RPNTable.size();
 				RPNTable.push_back(Lexeme());
-				RPNTable.push_back(Lexeme(RPN_FGO));
+				RPNTable.push_back(Lexeme(RPN_GO_FALSE));
 				
 				pos3 = RPNTable.size();
 				RPNTable.push_back(Lexeme());
@@ -688,286 +682,168 @@ void Parser::OP()
 			break;
 		
 		case LEX_BREAK:													// break operator
-			breakCheck();
+			checkBreak();
 			getLexeme();
-			if (type != LEX_SEMICOLON)
+			if (currType != LEX_SEMICOLON)
 			{
-				syntaxError(16, "did you forget ';' ?");				// Syntax error #16
+				syntaxError(23, "did you forget ';' ?");				// Syntax error #23
 			}
 			getLexeme();
 			break;
 		
 		case LEX_GOTO:													// goto operator
             getLexeme();
-			if (type == LEX_ID)
+			if (currType == LEX_ID)
 			{
-				if (!idTable[val].isLabel())				        	// if the identifier is not declared as label:
+				int idIndex = currVal;
+				if (!idTable[idIndex].isLabel())				        // if the identifier is not declared as label:
 				{
-					if (!idTable[val].isDeclared())	    				//   if the identifier is not declared at all:
+					if (!idTable[idIndex].isDeclared())	    			//   if the identifier is not declared at all:
 					{
-						idTable[val].setAsLabel();						//      set it as a label (implying this label was not present before in the code)
-						idTable[val].setAddress(RPNTable.size());
+						idTable[idIndex].setAsLabel();					//      set it as a label (implying this label was not present before in the code)
+						idTable[idIndex].setAddress(RPNTable.size());
 						RPNTable.push_back(Lexeme());
 						RPNTable.push_back(Lexeme(RPN_GO));
 					}
 					else 												//   else: the identifier is already declared as a variable => error
 					{
-						syntaxError(									// Syntax error #18
-							18, 
+						syntaxError(									// Syntax error #24
+							24, 
 							"the identifier has already been declared"
 						);
 					}
 				}
-				else 													// else: the identifier has already been declared as label
-				{														//   i.e. this label was present in the code before
-					int value = idTable[val].getValue();
-					RPNTable.push_back(Lexeme(RPN_LABEL, value));
+				else 													// else: the identifier has already been declared as a label
+				{														// i.e. this label was present in the code before
+					double labelValue = idTable[idIndex].getValue();
+					RPNTable.push_back(Lexeme(RPN_LABEL, labelValue));
 					RPNTable.push_back(Lexeme(RPN_GO));
 				}
 				getLexeme();
-				if (type == LEX_SEMICOLON)
+				if (currType == LEX_SEMICOLON)
 				{
 					getLexeme();
 				}
 				else
 				{
-					syntaxError(										// Syntax error #19
-						19, 
+					syntaxError(										// Syntax error #25
+						25, 
 						"\"goto\" operator: did you forget ';' ?"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #17
-					17, 
+				syntaxError(											// Syntax error #26
+					26, 
 					"expected label after \"goto\" operator"
 				);
 			}
-			/*
-			if (type != LEX_ID)
-			{
-				syntaxError(											// Syntax error #17
-					17, 
-					"expected label after \"goto\" operator"
-				);
-			}
-			if (!idTable[val].isLabel())				        		// if the identifier is not declared as label:
-			{
-				if (!idTable[val].isDeclared())	    					//   if the identifier is not declared at all:
-				{
-					idTable[val].setAsLabel();							//      set it as a label (implying this label was not present before in the code)
-					idTable[val].setAddress(RPNTable.size());
-					RPNTable.push_back(Lexeme());
-					RPNTable.push_back(Lexeme(RPN_GO));
-				}
-				else 													//   else: the identifier is already declared as a variable => error
-				{
-					syntaxError(										// Syntax error #18
-						18, 
-						"the identifier has already been declared"
-					);
-				}
-			}
-			else 														// else: the identifier has already been declared as label
-			{															//   i.e. this label was present in the code before
-				int value = idTable[val].getValue();
-				RPNTable.push_back(Lexeme(RPN_LABEL, value));
-				RPNTable.push_back(Lexeme(RPN_GO));
-			}
-			getLexeme();
-			if (type != LEX_SEMICOLON)
-			{
-				syntaxError(											// Syntax error #19
-					19, 
-					"\"goto\" operator: did you forget ';' ?"
-				);
-			}
-			getLexeme();
-			*/
 			break;
 		
 		case LEX_READ:													// read() operator
 			getLexeme();
-			if (type == LEX_LEFT_PAREN)
+			if (currType == LEX_LEFT_PAREN)
 			{
 				getLexeme();
-				if (type == LEX_ID)
+				if (currType == LEX_ID)
 				{
-					identReadCheck();
-					RPNTable.push_back(Lexeme(RPN_ADDRESS, val));
+					checkIdInRead();
+					RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));
 					getLexeme();
-					if (type == LEX_RIGHT_PAREN)
+					if (currType == LEX_RIGHT_PAREN)
 					{
 						getLexeme();
 						RPNTable.push_back(Lexeme(LEX_READ));
-						if (type == LEX_SEMICOLON)
+						if (currType == LEX_SEMICOLON)
 						{
 							getLexeme();
 						}
 						else
 						{
-							syntaxError(23, "Did you forget ';' ?");	// Syntax error #23
+							syntaxError(27, "Did you forget ';' ?");	// Syntax error #27
 						}
 					}
 					else
 					{
-						syntaxError(									// Syntax error #22
-							22, 
+						syntaxError(									// Syntax error #28
+							28, 
 							"'read' expression: did you forget ')' ?"
 						);
 					}
 				}
 				else
 				{
-					syntaxError(										// Syntax error #21
-						21, 
+					syntaxError(										// Syntax error #29
+						29, 
 						"'read' expression: identifier not found"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #20
-					20, 
+				syntaxError(											// Syntax error #30
+					30, 
 					"'read' expression: expected '(' after 'read'"
 				);
 			}
-			/*
-			if (type != LEX_LEFT_PAREN)
-			{
-				syntaxError(											// Syntax error #20
-					20, 
-					"'read' expression: expected '(' after 'read'"
-				);
-			}
-			getLexeme();
-			if (type != LEX_ID)
-			{
-				syntaxError(											// Syntax error #21
-					21, 
-					"'read' expression: identifier not found"
-				);
-			}
-			identReadCheck();
-			RPNTable.push_back(Lexeme(RPN_ADDRESS, val));
-			getLexeme();
-			
-			if (type != LEX_RIGHT_PAREN)
-			{
-			    syntaxError(											// Syntax error #22
-					22, 
-					"'read' expression: did you forget ')' ?"
-				);
-			}
-			getLexeme();
-			RPNTable.push_back(Lexeme(LEX_READ));
-				
-			if (type != LEX_SEMICOLON)
-			{
-				syntaxError(23, "Did you forget ';' ?");				// Syntax error #23
-			}
-			getLexeme();
-			*/
 			break;
 		
 		case LEX_WRITE:	case LEX_WRITELINE:								// write() and writeline() operators
 		{
-			lexemeType writeMode = type;
+			lexemeType writeMode = currType;
 			getLexeme();
-			if (type == LEX_LEFT_PAREN)
+			if (currType == LEX_LEFT_PAREN)
 			{
 				getLexeme();
-				if (type != LEX_RIGHT_PAREN)
+				if (currType != LEX_RIGHT_PAREN)
 				{
 					STMNT(false);
-					while (type == LEX_COMMA)
+					while (currType == LEX_COMMA)
 					{
 						getLexeme();
 						STMNT(false);
 					}
 
-					if (type == LEX_RIGHT_PAREN)
+					if (currType == LEX_RIGHT_PAREN)
 					{
 						getLexeme();
 						RPNTable.push_back(Lexeme(writeMode));
-						if (type == LEX_SEMICOLON)
+						if (currType == LEX_SEMICOLON)
 						{
 							getLexeme();
 						}
 						else
 						{
-							syntaxError(											// Syntax error #27
-								27,
+							syntaxError(								// Syntax error #31
+								31,
 								"Did you forget ';' ?"
 							);
 						}
 					}
 					else
 					{
-						syntaxError(											// Syntax error #26
-							26,
+						syntaxError(									// Syntax error #32
+							32,
 							"'write' expression: did you forget ')' ?"
 						);
 					}
 				}
 				else
 				{
-					syntaxError(											// Syntax error #25
-						25,
+					syntaxError(										// Syntax error #33
+						33,
 						"'write' expression: identifier not found"
 					);
 				}
 			}
 			else
 			{
-				syntaxError(											// Syntax error #24
-					24, 
+				syntaxError(											// Syntax error #34
+					34, 
 					"'write' expression: expected '(' after 'write'"
 				);
 			}
-			
-			/*
-			if (type != LEX_LEFT_PAREN)
-			{
-				syntaxError(											// Syntax error #24
-					24, 
-					"'write' expression: expected '(' after 'write'"
-				);
-			}
-			getLexeme();
-			if (type == LEX_RIGHT_PAREN)
-			{
-				syntaxError(											// Syntax error #25
-					25,
-					"'write' expression: identifier not found"
-				);
-			}
-			STMNT(false);
-			while (type == LEX_COMMA)
-			{
-				getLexeme();
-				STMNT(false);
-			}
-
-			if (type != LEX_RIGHT_PAREN)
-			{
-				syntaxError(											// Syntax error #26
-					26,
-					"'write' expression: did you forget ')' ?"
-				);
-			}
-			getLexeme();
-			RPNTable.push_back(Lexeme(writeMode));
-			if (type != LEX_SEMICOLON)
-			{
-				syntaxError(											// Syntax error #27
-					27,
-					"Did you forget ';' ?"
-				);
-			}
-			getLexeme();
-			*/
 			break;
 		}
 		case LEX_LEFT_BRACE:											// Composite operator
@@ -986,53 +862,53 @@ void Parser::OP_STMNT()
 {
 	isAssignment = false;
 	STMNT();
-	if (type == LEX_SEMICOLON || type == LEX_COLON)
+	if (currType == LEX_SEMICOLON || currType == LEX_COLON)
 	{
 		getLexeme();
 	}
 	else
 	{
-		syntaxError(28, "Did you forget ';' ?");						// Syntax error #28
+		syntaxError(35, "Did you forget ';' ?");						// Syntax error #35
 	}
 }
 
 // Statement analysis
-void Parser::STMNT(bool operand)
+void Parser::STMNT(bool lvalue)
 {
-	isLvalue = operand;
-	lexemeType assignedType = type;  									// save the type of lvalue lexeme (in case of assigning variable of a different type)
+	isLvalue = lvalue;
+	lexemeType assignedType = currType;  								// save the type of lvalue lexeme (in case of assigning variable of a different type)
 	ADD();
 
-	if (type == LEX_ASSIGN)												// if assignment takes place:
+	if (currType == LEX_ASSIGN)											// if assignment takes place:
 	{
 		if (assignedType == LEX_ID && isLvalue)							//   check that before assignment was lvalue statement identifier
 		{
 			isAssignment = true;
 			int lvalueUncertain;
 			extract(lvalueUncertainStack, lvalueUncertain);
-			RPNTable[num] = Lexeme(RPN_ADDRESS, lvalueUncertain);
+			RPNTable[lvalueUncertainIndex] = Lexeme(RPN_ADDRESS, lvalueUncertain);
 			getLexeme();
 			STMNT();
-			assignEqualTypeCheck();
+			checkTypeInAssign();
 			RPNTable.push_back(LEX_ASSIGN);
 		}
 		else
 		{
-			syntaxError(												// Syntax error #29
-				29, 
+			syntaxError(												// Syntax error #36
+				36, 
 				"Lvalue required as a left operand of assignment"
 			);
 		}
 	}
-	else if (type >= LEX_EQ && type <= LEX_NOT_EQ)
+	else if (currType >= LEX_EQ && currType <= LEX_NOT_EQ)
 	{
-		lexemeType compareType = type;
+		lexemeType compareType = currType;
 		
 		isLvalue = false;
-		lexStack.push(type); 
+		lexStack.push(currType); 
 		getLexeme();
 		ADD();
-		operationCheck();
+		checkOperationType();
 		RPNTable.push_back(Lexeme(compareType));
 	}
 	
@@ -1041,63 +917,66 @@ void Parser::STMNT(bool operand)
 	{
 		int lvalueUncertain;
 		extract(lvalueUncertainStack, lvalueUncertain);
-		
-		RPNTable[num] = isLvalue ? Lexeme(RPN_ADDRESS, lvalueUncertain) : Lexeme(LEX_ID, lvalueUncertain);
+		RPNTable[lvalueUncertainIndex] = isLvalue ? 
+			Lexeme(RPN_ADDRESS, lvalueUncertain) : 
+			Lexeme(LEX_ID, lvalueUncertain);
 	}
 }
 
+// Additive state analysis
 void Parser::ADD()
 {
 	MULTI();
-	while (type == LEX_PLUS || type == LEX_MINUS || type == LEX_OR)
+	while (currType == LEX_PLUS || currType == LEX_MINUS || currType == LEX_OR)
 	{
-		lexemeType additionType = type;
-		
+		lexemeType additionType = currType;
 		isLvalue = false;
-		lexStack.push(type);
+		lexStack.push(currType);
 		getLexeme();
 		MULTI();
-		operationCheck();
+		checkOperationType();
 		RPNTable.push_back(Lexeme(additionType));
 	}
 }
 
+// Multiplicative state analysis
 void Parser::MULTI()
 {
 	FIN();
-	while (type == LEX_TIMES || type == LEX_SLASH || type == LEX_PERCENT || type == LEX_AND)
+	while (currType == LEX_TIMES || currType == LEX_SLASH || currType == LEX_PERCENT || currType == LEX_AND)
     {
-		lexemeType multiplicationType = type;
+		lexemeType multiplicationType = currType;
 		
 		isLvalue = false;
-		lexStack.push(type);
+		lexStack.push(currType);
 		getLexeme();
 		FIN();
-        operationCheck();
+        checkOperationType();
 		RPNTable.push_back(Lexeme(multiplicationType));
 	}
 }
 
+// Final state analysis
 void Parser::FIN()
 {
-	switch (type)
+	switch (currType)
 	{
 		case LEX_ID:
 		{
 			if (isLvalue)
 			{
-				lvalueUncertainStack.push(val);
-				num = RPNTable.size();
+				lvalueUncertainStack.push(currVal);
+				lvalueUncertainIndex = RPNTable.size();
 				RPNTable.push_back(Lexeme());
 			}
 			else
 			{
-				RPNTable.push_back(Lexeme(LEX_ID, val));
+				RPNTable.push_back(Lexeme(LEX_ID, currVal));
 			}
 
-			int idIndex = val;
+			int idIndex = currVal;
             getLexeme();
-			if (type == LEX_COLON)					    				// if ':' goes after the identifier:
+			if (currType == LEX_COLON)					    			// if ':' goes after the identifier:
 			{
 				if (!isAssignment)
 				{														//   it means that identifier is a label
@@ -1110,16 +989,19 @@ void Parser::FIN()
 					if (idTable[idIndex].isLabel())						//   if an identifier was declared as label before:					
 					{
 						int pos = idTable[idIndex].getAddress();		//     pos - label's address in the code
-						if (idTable[idIndex].getValue() != -1)			//	   if this label has already been assigned a value:
-						{												//       the label was placed twice within the code => error
-							syntaxError(								// Syntax error #30
-								30, 
+						if (idTable[idIndex].getValue() == -1)			//	   if this label has already been assigned a value:
+						{
+							idTable[idIndex].setValue(RPNTable.size());	//     assign the location the label will lead to
+							idTable[idIndex].setAssign();				//     confirm that label has been assigned a value
+							RPNTable[pos] = Lexeme(RPN_LABEL, RPNTable.size());
+						}
+						else											//   else:
+						{												//     the label was placed twice within the code => error
+							syntaxError(								// Syntax error #37
+								37, 
 								"Label \"" + idTable[idIndex].getName() + "\" is declared twice"
 							);
 						}
-						idTable[idIndex].setValue(RPNTable.size());		//     assign the location the label will lead to
-						idTable[idIndex].setAssign();					//     confirm that label has been assigned a value
-						RPNTable[pos] = Lexeme(RPN_LABEL, RPNTable.size());
 					}
 					else if (!idTable[idIndex].isDeclared())			//     if an identifier was not declared as label:		
 					{
@@ -1129,21 +1011,21 @@ void Parser::FIN()
 					}
 					else
 					{	
-						syntaxError(									// Syntax error #31
-							31,
+						syntaxError(									// Syntax error #38
+							38,
 							"Label \"" + idTable[idIndex].getName() + "\" is already declared as an identifier and cannot be used"
 						);
 					}
 				}
 				else
 				{
-					syntaxError(										// Syntax error #32
-						32,
+					syntaxError(										// Syntax error #39
+						39,
 						"Wrong usage of label \"" + idTable[idIndex].getName() + "\""
 					);
 				}
 			}
-			else if (type == LEX_PLUS_PLUS || type == LEX_MINUS_MINUS)
+			else if (currType == LEX_PLUS_PLUS || currType == LEX_MINUS_MINUS)
 			{
 				if (!isAssignment)
 				{
@@ -1154,21 +1036,21 @@ void Parser::FIN()
 					}
 				}
 				isLvalue = false;
-				type == LEX_PLUS_PLUS ? plusStack.push(idIndex) : minusStack.push(idIndex);
+				currType == LEX_PLUS_PLUS ? plusStack.push(idIndex) : minusStack.push(idIndex);
 				getLexeme();
 			}
-			idCheck(idIndex);
+			checkIdDeclared(idIndex);
 			break;
 		}	
 		case LEX_INT_NUM:
 			lexStack.push(LEX_INT);
-			RPNTable.push_back(lex);
+			RPNTable.push_back(currLex);
 			getLexeme();
 			break;
 		
 		case LEX_REAL_NUM:
 			lexStack.push(LEX_REAL);
-			RPNTable.push_back(lex);
+			RPNTable.push_back(currLex);
 			getLexeme();
 			break;
 		
@@ -1176,31 +1058,31 @@ void Parser::FIN()
 			isLvalue = false;
 			getLexeme();
 			FIN();
-			unaryOperationCheck();
+			checkUnaryOperation();
 			break;
 		
 		case LEX_MINUS:
 			isLvalue = false;
 			getLexeme();
 			FIN();
-			unaryOperationCheck();
+			checkUnaryOperation();
 			RPNTable.push_back(Lexeme(LEX_UNARY_MINUS));
 			break;
 			
 		case LEX_PLUS_PLUS: case LEX_MINUS_MINUS:
 			isLvalue = false;
 			lexemeType unaryOpType;
-			unaryOpType = type == LEX_PLUS_PLUS ? LEX_PP_PRE : LEX_MM_PRE;// save unary operation's type to add it to RPN table
+			unaryOpType = currType == LEX_PLUS_PLUS ? LEX_PP_PRE : LEX_MM_PRE;// save unary operation's type to add it to RPN table
 			
 			getLexeme();
-			if (type == LEX_ID)
+			if (currType == LEX_ID)
 			{
-				idCheck(val);
-				unaryOperationCheck();
+				checkIdDeclared(currVal);
+				checkUnaryOperation();
 				if (!isAssignment)
 				{
-					RPNTable.push_back(Lexeme(RPN_ADDRESS, val));
-					RPNTable.push_back(Lexeme(LEX_ID, val));
+					RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));
+					RPNTable.push_back(Lexeme(LEX_ID, currVal));
 					RPNTable.push_back(Lexeme(LEX_INT_NUM, 1));
 					
 					unaryOpType == LEX_PP_PRE ?
@@ -1211,15 +1093,15 @@ void Parser::FIN()
 				}
 				else
 				{
-					RPNTable.push_back(Lexeme(RPN_ADDRESS, val));
+					RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));
 					RPNTable.push_back(Lexeme(unaryOpType));
 				}
 				getLexeme();
 			}
 			else
 			{
-				syntaxError(											// Syntax error #33
-					33, 
+				syntaxError(											// Syntax error #40
+					40, 
 					"Lvalue requied as an increment operand"
 				);
 			}
@@ -1228,10 +1110,10 @@ void Parser::FIN()
 		case LEX_QUOTE:
 			getLexeme();
 			lexStack.push(LEX_STRING);
-            RPNTable.push_back(lex);
-			if (type != LEX_STR_CONST)
+            RPNTable.push_back(currLex);
+			if (currType != LEX_STR_CONST)
 			{
-				syntaxError(34, "No string constant found");			// Syntax error #34
+				syntaxError(41, "No string constant found");			// Syntax error #41
 			}
 			getLexeme();												// get the finishing quote (if it is missing lexical error will be triggered)
 			getLexeme();
@@ -1239,7 +1121,7 @@ void Parser::FIN()
 		
 		case LEX_TRUE: case LEX_FALSE:
 			lexStack.push(LEX_BOOL);									// true and false are bool => put bool in the lexemes stack
-			type == LEX_TRUE ? 
+			currType == LEX_TRUE ? 
 				RPNTable.push_back(Lexeme(LEX_TRUE, 1)) :
 				RPNTable.push_back(Lexeme(LEX_FALSE, 0));
 			getLexeme();
@@ -1249,23 +1131,23 @@ void Parser::FIN()
 			isLvalue = false;
 			getLexeme();
 			FIN();
-			notCheck();
+			checkNot();
 			RPNTable.push_back(Lexeme(LEX_NOT));
 			break;
 		
 		case LEX_LEFT_PAREN:
 			getLexeme();
 			STMNT(false);
-			if (type != LEX_RIGHT_PAREN)
+			if (currType != LEX_RIGHT_PAREN)
 			{
-				syntaxError(35, "Did you forget ')' ?");				// Syntax error #35
+				syntaxError(42, "Did you forget ')' ?");				// Syntax error #42
 			}
 			getLexeme();
 			break;
 		
 		default:
-			cout << "LEXEME: " << lex << "\n";
-			syntaxError(36, "No matching operand found");				// Syntax error #36
+			//cout << "LEXEME: " << lex << "\n";
+			syntaxError(43, "No matching operand found");				// Syntax error #43
 			break;
 	}
 }
@@ -1275,47 +1157,49 @@ void Parser::FIN()
 // Set the variable's type and check its declaration status
 void Parser::setVar()
 {
-	if (idTable[val].isDeclared())							    		// if the variable has already been declared before:
+	int idIndex = currVal;
+	if (!idTable[idIndex].isDeclared())							    	// if the variable has not been declared before:
+	{
+		idTable[idIndex].setType(lexStack.top());		    			//   assign the variable its type (which is kept in the end of the lexemes stack)
+		idTable[idIndex].setDeclare();				    				//   confirm the variable has been declared
+	}
+	else																// else:
 	{
 		semanticError(													//   semantic error
-			"Variable \"" + idTable[val].getName() + "\" is declared twice"
+			"Variable \"" + idTable[idIndex].getName() + "\" is declared twice"
 		);
-	}
-	else 																// else:
-	{
-		idTable[val].setType(lexStack.top());		    				//   assign the variable its type (which is kept in the end of the lexemes stack)
-		idTable[val].setDeclare();				    					//   confirm the variable has been declared
 	}
 }
 
 // Check whether identifier was declared or not
-void Parser::idCheck(int value)
+void Parser::checkIdDeclared(int idIndex)
 {
-	if(idTable[value].isDeclared())										// if declared:
+	if (idTable[idIndex].isDeclared())									// if the identifier has been declared:
 	{
-		lexStack.push(idTable[value].getType());						//   add it to the lexemes stack
+		lexStack.push(idTable[idIndex].getType());						//   add it to the lexemes stack
 	}	
 	else																// else:
 	{
 		semanticError(													//   semantic error
-			"Variable \"" + idTable[value].getName() + "\" has not been declared"
+			"Identifier \"" + idTable[idIndex].getName() + "\" has not been declared"
 		);
 	}
 }
 
-// Check the identifier's declaration in read()
-void Parser::identReadCheck()
+// Check declaration of an identifier in read()
+void Parser::checkIdInRead()
 {
-	if(!idTable[val].isDeclared())
+	int idIndex = currVal;
+	if (!idTable[idIndex].isDeclared())									// if the variable has not been declared before:
 	{
-		semanticError(
-			"in 'read()' function: Variable \"" + idTable[val].getName() + "\" has not been declared"
+		semanticError(													//   semantic error
+			"in 'read()' function: Variable \"" + idTable[idIndex].getName() + "\" has not been declared"
 		);
 	}
 }
 
 // Single operation check
-void Parser::operationCheck()
+void Parser::checkOperationType()
 {
 	lexemeType opLeft;													// left operand 
 	lexemeType opRight;													// right operand
@@ -1328,7 +1212,6 @@ void Parser::operationCheck()
 	lexemeType resType = opTable.getResultType(opLeft, opRight, oper);	// operation result type
 	if (resType == LEX_NULL)
 	{
-		cout << opLeft << " " << opRight << " " << oper << "\n";
 		semanticError("Variable types in the operation do not match");
 	}
 	else
@@ -1337,7 +1220,8 @@ void Parser::operationCheck()
 	}
 }
 
-void Parser::unaryOperationCheck()
+// Unary operation check
+void Parser::checkUnaryOperation()
 {
 	int opType = lexStack.top();										// operand's type is kept at the end of the lexemes stack
 	if(opType != LEX_INT)												// if operand's type is not integer:
@@ -1347,7 +1231,7 @@ void Parser::unaryOperationCheck()
 }
 
 // 'not' operator check
-void Parser::notCheck()
+void Parser::checkNot()
 {
 	lexemeType opType = lexStack.top();
 	if(opType != LEX_BOOL)
@@ -1357,7 +1241,7 @@ void Parser::notCheck()
 }
 
 // Check of equality of variable type and statement type before assignment
-void Parser::assignEqualTypeCheck()
+void Parser::checkTypeInAssign()
 {
 	lexemeType typeRight;												// statement (or right variable) type 
 	extract(lexStack, typeRight);										// extract it from the lexemes stack
@@ -1366,12 +1250,12 @@ void Parser::assignEqualTypeCheck()
 		(lexStack.top() != LEX_BOOL || typeRight != LEX_INT) &&
 		(lexStack.top() != LEX_REAL || typeRight != LEX_INT)
 	) {
-		semanticError("The types do not match " + to_string(lexStack.top()) + " " + to_string(typeRight));
+		semanticError("The types " + to_string(lexStack.top()) + " and " + to_string(typeRight) + " do not match ");
 	}
 }
 
 // Check of statement type in conditions of if() / while() / for(;;) / do-while()
-void Parser::conditionEqualTypeCheck()
+void Parser::checkTypeInCondition()
 {
 	if(lexStack.top() == LEX_BOOL)										// must be bool
 	{
@@ -1379,7 +1263,43 @@ void Parser::conditionEqualTypeCheck()
 	}
 	else
 	{
-		semanticError("The expression is not boolean");
+		semanticError("The condition expression is not boolean");
+	}
+}
+
+// Checking break
+void Parser::checkBreak()
+{
+	if(loopState)														// if the code is in loop state:
+	{
+		int pos = RPNTable.size();
+		breakStackItem newItem {nestedLoopsCount, pos};
+		breakStack.push(newItem);										//   push break's position in RPN into stack
+		RPNTable.push_back(Lexeme());										//   add empty lexeme (will be assigned transfer location later) to RPN table
+		RPNTable.push_back(Lexeme(RPN_GO));								    //   add transfer lexeme to RPN table
+	}
+	else																// else:
+	{																	//    semantic error
+		semanticError("'break' can only be used inside loops");
+	}
+}
+
+// Checking goto operation
+void Parser::checkGoto()
+{
+	for (auto &id : idTable)
+	{
+		if(id.isLabel())
+		{
+			if(id.isAssigned() && id.getAddress() == -1)
+			{
+				semanticWarning("label \""+ id.getName() + "\" declared, but not used");
+			}
+			if(!id.isAssigned() && id.getAddress() != -1)
+			{
+				semanticError("label \""+ id.getName() + "\" used, but not declared");
+			}
+		}
 	}
 }
 
@@ -1390,6 +1310,7 @@ void Parser::breakControllerOn()
     nestedLoopsCount++;													//   number of nested loops may also increase
 }
 
+// Disable break controller
 void Parser::breakControllerOff()
 {
 	if (!nestedLoopsCount)												// if a standard loop was finished and not a nested one:
@@ -1413,59 +1334,23 @@ void Parser::breakControllerOff()
 	nestedLoopsCount--;
 }
 
-// Checking break
-void Parser::breakCheck()
-{
-	if(loopState)														// if the code is in loop state:
-	{
-		int pos = RPNTable.size();
-		breakStackItem newItem {nestedLoopsCount, pos};
-		breakStack.push(newItem);										//   push break's position in RPN into stack
-		RPNTable.push_back(Lexeme());										//   add empty lexeme (will be assigned transfer location later) to RPN table
-		RPNTable.push_back(Lexeme(RPN_GO));								    //   add transfer lexeme to RPN table
-	}
-	else																// else:
-	{																	//    semantic error
-		semanticError("'break' can only be used inside loops");
-	}
-}
-
-// Checking goto operation
-void Parser::gotoCheck()
-{
-	for (auto &id : idTable)
-	{
-		if(id.isLabel())
-		{
-			if(id.isAssigned() && id.getAddress() == -1)
-			{
-				semanticWarning("label \""+ id.getName() + "\" declared, but not used");
-			}
-			if(!id.isAssigned() && id.getAddress() != -1)
-			{
-				semanticError("label \""+ id.getName() + "\" used, but not declared");
-			}
-		}
-	}
-}
-
 // Converting unary operation to RPN
 void Parser::unaryOperationToRPN()
 {
 	int value;
-	while (!plusStack.empty())
+	while (!plusStack.empty())											// while there are saved operations in the postfix '++' stack:
 	{
-		extract(plusStack, value);
-	    RPNTable.push_back(Lexeme(RPN_ADDRESS, value));
+		extract(plusStack, value);										//   extract the identifier used in the operation
+	    RPNTable.push_back(Lexeme(RPN_ADDRESS, value));					//   add the operation to the RPN table
 		RPNTable.push_back(Lexeme(LEX_ID, value));
 		RPNTable.push_back(Lexeme(LEX_INT_NUM, 1));
 		RPNTable.push_back(Lexeme(LEX_PLUS));
 		RPNTable.push_back(Lexeme(LEX_ASSIGN));
 	}
-	while (!minusStack.empty())
+	while (!minusStack.empty())											// While there are saved operations in the postfix '--' stack:
 	{
-		extract(minusStack, value);
-		RPNTable.push_back(Lexeme(RPN_ADDRESS, value));
+		extract(minusStack, value);										//   extract the identifier used in the operation
+		RPNTable.push_back(Lexeme(RPN_ADDRESS, value));					//   add the operation to the RPN table
 		RPNTable.push_back(Lexeme(LEX_ID, value));
 		RPNTable.push_back(Lexeme(LEX_INT_NUM, 1));
 		RPNTable.push_back(Lexeme(LEX_MINUS));

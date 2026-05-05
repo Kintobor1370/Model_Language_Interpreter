@@ -112,26 +112,30 @@ public:
 vector<Identifier> idTable;												// Identifiers table (vectorised)
 vector<string> strConstTable;	    									// String constants table (vectorised)
 
-// Filling the identifier table with unique entries
-int addUniqueIdent(const string name)
+// Adda unique identifier to the identifiers table
+int addUniqueId(const string name)
 {
 	auto isPresent = [name](Identifier id) { return id.getName() == name; };
     auto it = std::find_if(idTable.begin(), idTable.end(), isPresent);
         
     if (it != idTable.end())                                        	// if an identifier with this name is already present in the table:
+	{
         return distance(idTable.begin(), it);                       	// return its position in the table
-    idTable.push_back(Identifier(name));				  				// else: add the ID in the end of the table
+	}
+	idTable.push_back(Identifier(name));				  				// else: add the ID in the end of the table
     return idTable.size() - 1;							    	    	// and return its position
 }
 
-// Filling the sting constants table with unique entries
+// Add a unique string constant to a string constants table
 int addUniqueStrConst(const string str)
 {
 	auto it = find(strConstTable.begin(), strConstTable.end(), str);
 
     if (it != strConstTable.end())            	    		    		// if the current string is already present in the table:
+	{
         return distance(strConstTable.begin(), it);   	    	      	// return its position in the table
-    strConstTable.push_back(str);             					    	// else: add the string in the end of the table
+	}
+	strConstTable.push_back(str);             					    	// else: add the string in the end of the table
     return strConstTable.size() - 1;      					        	// and return its position
 }
 
@@ -179,6 +183,7 @@ public:
 	lexemeType getResultType(lexemeType opX, lexemeType opY, lexemeType oper);
 };
 
+// Return type of the result of the operation (returns LEX_NULL if the operation is illegal)
 lexemeType OperationTable::getResultType(lexemeType opX, lexemeType opY, lexemeType oper)
 {
 	auto isPresent = [opX, opY, oper](pair<opTableKey, lexemeType> entry)

@@ -14,8 +14,8 @@ public:
 	
 	void interpret()
 	{
-        parser.analyse();                                           // Conduct lexical, syntax and semantic analysis of the code. Retreive RPN vector
-		auto RPNs = parser.getRPNTable();							// Retreive RPN table of the analysed code
-		executer.execute(RPNs);	                    				// Execute the analysed code
+        parser.validateProgram();									// Conduct lexical, syntactic and semantic analysis of the program. Build the RPN table
+		auto RPNs = parser.getRPNTable();							// Retreive RPN table of the parsed program
+		executer.executeProgram(RPNs);								// Execute the parsed program
 	}
 };

@@ -8,16 +8,14 @@ using namespace std;
 //___________________________________________MODEL LANGUAGE PROGRAM EXECUTER___________________________________________
 class Executer
 {
-	Lexeme currLex;													// lexeme currently being executed
-    
-    stack<double> args;												// stack for int / bool arguement values
-    stack<string> strConstsStack;									// stack for string constants
-	stack<lexemeType> typesStack;									// stack for lexeme types
+	stack<double> args;												// stack of values of int / real / bool arguements
+    stack<string> strConstsStack;									// stack of string constants
+	stack<lexemeType> typesStack;									// stack of lexeme types
 	
 	// Execution error processing
 	void executionError(string errMessage)
 	{
-		cerr << "[EXECUTION ERROR] " << errMessage << endl;
+		cout << "[EXECUTION ERROR] " << errMessage << endl;
 		exit(1);
 	}
 	
@@ -30,26 +28,28 @@ class Executer
 		}
 		catch(string s)
 		{
-			cerr << "[WARNING] " << s << endl << endl;
+			cout << "[EXECUTION WARNING] " << s << endl;
 		}
 	}
 public:
-	// Model program code execution
-	void execute(vector<Lexeme>& RPNTable);
+	Executer() {}
+
+	// Execute program
+	void executeProgram(vector<Lexeme> &RPNTable);
 	
-	// Executing printing command
-	void write()
+	// Execute 'write()' command
+	void executeWrite()
 	{
 		if (!typesStack.empty())
 		{
 			double arg;
-			string s;
-			lexemeType currentType;
-			extract(typesStack, currentType);
-			switch (currentType)
+			string strConst;
+			lexemeType currType;
+			extract(typesStack, currType);
+			switch (currType)
 			{
 				case LEX_STRING:
-					extract(strConstsStack, s);
+					extract(strConstsStack, strConst);
 					break;
 				
 				case LEX_INT: case LEX_REAL: case LEX_BOOL:
@@ -59,11 +59,11 @@ public:
 				default:
 					break;
 			}
-			write();
-			switch (currentType)
+			executeWrite();
+			switch (currType)
 			{
 				case LEX_STRING:
-					cout << s;
+					cout << strConst;
 					break;
 				
 				case LEX_BOOL:
@@ -81,7 +81,7 @@ public:
 	}
 };
 
-void Executer::execute(vector<Lexeme>& RPNTable)
+void Executer::executeProgram(vector<Lexeme> &RPNTable)
 {
     int arg1;
 	int arg2;
@@ -97,14 +97,11 @@ void Executer::execute(vector<Lexeme>& RPNTable)
 		cout << rpn << "\n";
 	}
 	*/
-	int index = 0;
-	int size = RPNTable.size();
 	
-    //cout << "Beginning execution...\n\n";
-    
-    while (index < size)
+	int tableIndex = 0;
+    while (tableIndex < RPNTable.size())
     {	
-		currLex = RPNTable[index];
+		Lexeme currLex = RPNTable[tableIndex];
         switch (currLex.getType())
         {
 			case RPN_LABEL:
@@ -379,25 +376,25 @@ void Executer::execute(vector<Lexeme>& RPNTable)
  
             case RPN_GO:
                 extract(args, arg1);
-                index = arg1 - 1;
+                tableIndex = arg1 - 1;
                 break;
  
-            case RPN_FGO:
+            case RPN_GO_FALSE:
                 extract(args, arg1);
                 extract(args, arg2);
                 typesStack.pop();
                 if (!arg2)
 				{
-					index = arg1 - 1;
+					tableIndex = arg1 - 1;
 				}
 				break;
  
             case LEX_WRITE:
-				write();
+				executeWrite();
 				break;
 				
 			case LEX_WRITELINE:
-				write();
+				executeWrite();
 				cout << endl;
 				break;
  
@@ -444,7 +441,6 @@ void Executer::execute(vector<Lexeme>& RPNTable)
 				executionError("unknown element");
 				break;
 		}
-		++index;
+		tableIndex++;
 	}
-	//cout << "\nExecution complete!\n";
 }

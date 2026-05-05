@@ -79,7 +79,7 @@ enum lexemeType
 	
 	// Reverse Polish Notation (RPN) tokens
     RPN_GO, 															// 61 - RPN goto operator
-	RPN_FGO,															// 62 - RPN false goto operator (works only if the prior boolean value is false)
+	RPN_GO_FALSE,														// 62 - RPN false goto operator (works only if the prior boolean value is false)
 	RPN_LABEL,  														// 63 - RPN goto label
 	RPN_ADDRESS, 														// 64 - Identifier table address
 };
@@ -92,11 +92,7 @@ class Lexeme
 	double value;
 	
 public:
-	Lexeme(lexemeType type=LEX_NULL, double value=0)
-    {
-        this->type = type;
-        this->value = value;
-    }
+	Lexeme(lexemeType t = LEX_NULL, double v = 0) : type(t), value(v) {}
 
 	lexemeType getType() const
 	{
@@ -108,7 +104,7 @@ public:
 		return value;
 	}
 
-	// Debug
+	// DEBUG
 	friend ostream& operator << (ostream &out, Lexeme lex)
 	{
 		out << '(' << lex.type << ',' << lex.value << "); ";

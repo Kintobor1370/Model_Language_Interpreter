@@ -17,14 +17,14 @@ class Scanner
 		NUMBER,
 		DECIMAL,
 		STRING,
-		COMMENT,														// comment
-		COMMENT_STRING,													// one-line comment
+		COMMENT_SINGLE,													// one-line comment
+		COMMENT_MULTI,													// multi-line comment 
 		DELIM,															// delimeter
 		NOT_EQ,															// not equal
 		END_OF_FILE														// end of file
 	};
 	
-	state currentState;
+	state currState;
 	
 	static string wordTable[];											// functional words table
 	static lexemeType words[];
@@ -32,57 +32,50 @@ class Scanner
 	static string delimTable[];											// delimeters table
 	static lexemeType delims[];
 	
-	char c;																// the current character 
-	string buf;															// buffer for the string being entered
-	int bufTop;															// position of the last non-empty character in buffer
+	char currChar;														// the current character 
+	string buffer;														// buffer for the string being entered
+	int bufferTop;														// position of the last non-empty character in buffer
 	
 private:
-	// Open model language program file for reading
-	void openFile(const string fileName)
-	{
-		f = fopen(fileName.c_str(), "r");
-		return;
-	}
-	
 	// Clear buffer
 	void clearBuffer()
 	{
-		bufTop = 0;
-		buf.clear();
+		buffer.clear();
+		bufferTop = 0;
 	}
 	
 	// Add new character in buffer
-	void addChar(char c)
+	void addChar(char newChar)
 	{
-		buf.push_back(c);
-		bufTop++;
+		buffer.push_back(newChar);
+		bufferTop++;
 	}
 	
-	// Check if a string in buffer is present in the lexemes list
-	int check(const string &buf, const string lexemesList[])
+	// Check if a string in buffer is present in the lexemes table
+	int checkPresence(const string lexemeTable[])
 	{
 		int i = 0;
-		while (!lexemesList[i].empty())
+		while (!lexemeTable[i].empty())
 		{
-			if (buf == lexemesList[i])									// if a string in buffer is equal to an item of the lexemes list,
-				return i + 1;											// return its position in the list
-			i++;														// else check the next item
+			if (buffer == lexemeTable[i])								// if a string in buffer is equal to a table item:
+			{
+				return i + 1;											//   return its position in the list
+			}
+			i++;														// else: check the next item
 		}
-		return 0;														// 0 is returned if a string in buffer is not present in the lexemes list
+		return 0;														// 0 is returned if a string in buffer is not present in the table
 	}
 	
 	// Reading the next character of a model language program
 	void getChar()
 	{
-		c = fgetc(f);
-		return;
+		currChar = fgetc(f);
 	}
 	
 	// Pushing the current character back into the input stream
 	void ungetChar()
 	{
-		ungetc(c, f);
-		return;
+		ungetc(currChar, f);
 	}
 	
 	// Lexical error processing
@@ -94,26 +87,31 @@ private:
 		}
 		catch (string token)
 		{
-			string errorMessage;
+			int errorNum;
+			string errorMsg;
 			switch (token[0])
 			{
 				case '\\':
-					errorMessage = "1: Unknown escape sequence: " + token;
+					errorNum = 1;
+					errorMsg = "Unknown escape sequence: " + token;
 					break;
 				
 				case '\"':
-					errorMessage = "2: Missing terminating \" character.";
+					errorNum = 2;
+					errorMsg = "Missing terminating \" character.";
 					break;
 				
 				case '!':
-					errorMessage = "3: Expected initializer before '" + token + "' token.";
+					errorNum = 3;
+					errorMsg = "Expected initializer before '" + token + "' token.";
 					break;
 				
 				case '\'':
-					errorMessage = "4: No match for deliminator " + token;
+					errorNum = 4;
+					errorMsg = "No match for deliminator " + token;
 					break;
 			}
-			cerr << "LEXICAL ERROR #" << errorMessage << endl;
+			cout << "[LEXICAL ERROR #" << errorNum << "] " << errorMsg << endl;
 			exit(1);
 		}
 	}
@@ -121,8 +119,8 @@ private:
 public:
 	Scanner(const string fileName)
 	{
-		openFile(fileName);
-		currentState = INIT;
+		f = fopen(fileName.c_str(), "r");
+		currState = INIT;
 		getChar();
 	}
 	
@@ -261,139 +259,143 @@ Lexeme Scanner::getLexeme()
 	clearBuffer();
 	int number = 0;														// a number, encountered in the code
 	int decimal = 0;													// a value after decimal, encountered in the code
-	int lex;															// value of the current lexeme
+	int currLexVal;														// a value of the current lexeme
 	
 	do
 	{
-		switch(currentState)
+		switch(currState)
 		{
 			case INIT:													// Initial state:
-				if (c == ' ' || c == '\n' || c == '\r' || c == '\t')	//   if the character is space/end of the line/new line:
-				{
-					getChar();
+				if (
+					currChar == ' ' || 									//   if the character is space or end of the line or new line:
+					currChar == '\n' || 
+					currChar == '\r' || 
+					currChar == '\t'
+				) {
+					getChar();											//     get the next character
 				}
-				else if (isalpha(c))									//   if the character is an identifier:									
+				else if (isalpha(currChar))								//   if the character is an identifier:									
 				{
 					clearBuffer();
-					addChar(c);
-					currentState = IDENT;
+					addChar(currChar);
+					currState = IDENT;
 					getChar();
 				}
-				else if (isdigit(c))									//   if the character is a number:
+				else if (isdigit(currChar))								//   if the character is a digit:
 				{
-					number = c - '0';
-					currentState = NUMBER;
+					number = currChar - '0';
+					currState = NUMBER;
 					getChar();
 				}
-				else if (c == '.')
+				else if (currChar == '.')
 				{
-					currentState = DECIMAL;
+					currState = DECIMAL;
 					getChar();
 				}
-				else if (c == '\"')
+				else if (currChar == '\"')
 				{
-					addChar(c);
-					currentState = STRING;
+					addChar(currChar);
+					currState = STRING;
 					getChar();
-					lex = check(buf, delimTable);
-					return Lexeme(LEX_QUOTE, lex);
+					currLexVal = checkPresence(delimTable);
+					return Lexeme(LEX_QUOTE, currLexVal);
 				}     
-				else if (c == '/')                                      //   if the character is start of a comment:
+				else if (currChar == '/')                               //   if the character is start of a comment:
 				{
 					clearBuffer();
-					addChar(c);
+					addChar(currChar);
 					getChar();
-					switch(c)
+					switch (currChar)
 					{
-						case '*':                                       //     in case of multiple-line comment:
+						case '/':                                       //     in case of one-line comment:
 							clearBuffer();
-							currentState = COMMENT;
+							currState = COMMENT_SINGLE;
 							getChar();
 							break;
 
-						case '/':                                       //     in case of one-line comment:
+						case '*':                                       //     in case of multiple-line comment:
 							clearBuffer();
-							currentState = COMMENT_STRING;
+							currState = COMMENT_MULTI;
 							getChar();
 							break;
 						
 						default:										//     in case of not a comment:
 							ungetChar();								//       return the current character back into the input stream
-							currentState = DELIM;
-							c = '/';									//       return to analysing '/' as delimeter
+							currState = DELIM;
+							currChar = '/';								//       return to analysing '/' as delimeter
 							break;
 					}
 				}
-				else if (c == '!')                                      //   if the character is 'not equal' sign:
+				else if (currChar == '!')								//   if the character is 'not equal' sign:
 				{
 					clearBuffer();
-					addChar(c);
-					currentState = NOT_EQ;
+					addChar(currChar);
+					currState = NOT_EQ;
 					getChar();
 				}
-				else if (c == EOF)                                      //   if the character is end of file:
+				else if (currChar == EOF)								//   if the character is end of file:
 				{
-					currentState = END_OF_FILE;
+					currState = END_OF_FILE;
 				}
-				else                                                    //    else: delimeter
+				else                                                    //    else: the character is a part of a delimeter
 				{
 					clearBuffer();
-					addChar(c);
-					currentState = DELIM;
+					addChar(currChar);
+					currState = DELIM;
 				}
 				break;
 			
 			case IDENT:													// Identifier state:
-				lex = check(buf, wordTable);
-				if (isalpha(c) || isdigit(c))                           //   if the character is alphabetic or a number:
+				if (isalpha(currChar) || isdigit(currChar))             //   if the character is alphabetic or a number:
 				{
-					addChar(c);                                         //     add it to the buffer as a part of an identifier
+					addChar(currChar);                                  //     add it to the buffer as a part of an identifier
 					getChar();
 				}
-				else                                                    //   else: the identifier is finalised 
+				else                                                    //   else: the identifier is finished
 				{
-					currentState = INIT;								//     switch back to the initial state
-					if (lex)											//     if identifier in buffer has a match in a functional words table:
+					currState = INIT;									//     switch back to the initial state
+					currLexVal = checkPresence(wordTable);
+					if (currLexVal > 0)									//     if a string in buffer has a match in a functional words table:
 					{
-						return Lexeme((lexemeType) lex, lex);			//       return its lexeme
+						return Lexeme((lexemeType) currLexVal, currLexVal);//       return the functional word as a lexeme
 					}
-					else                                                //     else:
+					else                                                //     else: the string in bufer is an identifier
 					{
-						lex = addUniqueIdent(buf);                      //       add it to the table
-						return Lexeme(LEX_ID, lex);
+						currLexVal = addUniqueId(buffer);				//       add it to the table
+						return Lexeme(LEX_ID, currLexVal);
 					}
 				}
 				break;
 			
 			case NUMBER:                                                // Number state
-				if (isdigit(c))                                         //   if the character is a digit:
+				if (isdigit(currChar))                                  //   if the character is a digit:
 				{
-                    int newDigit = c - '0';
+                    int newDigit = currChar - '0';
 					number = 10 * number + newDigit;                    //     continue the number
 					getChar();
 				}
-				else if (c == '.')										//   if a decimal is encountered:
+				else if (currChar == '.')								//   if a decimal is encountered:
 				{
-					currentState = DECIMAL;								//     switch to decimal state
+					currState = DECIMAL;								//     switch to decimal state
 					getChar();
 				}
 				else                                                    //   else: the number is finished
 				{
-					currentState = INIT;
+					currState = INIT;
 					return Lexeme(LEX_INT_NUM, number);                 //     return the number as a lexeme
 				}
 				break;
 
 			case DECIMAL:												// Decimal state
-				if (isdigit(c))                                         //   if the character is a digit:
+				if (isdigit(currChar))                                  //   if the character is a digit:
 				{
-					int newDigit = c - '0';
+					int newDigit = currChar - '0';
 					decimal = 10 * decimal + newDigit;                  //     continue the number after decimal
 					getChar();
 				}
 				else                                                    //   else: the number after decimal is finished
 				{
-					currentState = INIT;
+					currState = INIT;
 					int numDigitsAfterDecimal = pow(10, to_string(decimal).length());
 					double fullNumber = number + (double) decimal / numDigitsAfterDecimal;// combine the whole value with the value after decimal
 					return Lexeme(LEX_REAL_NUM, fullNumber);			//     return the number as a lexeme
@@ -402,14 +404,14 @@ Lexeme Scanner::getLexeme()
 				
 			case STRING:												// String state
 				clearBuffer();
-				if (c != '\"')											// if the character is NOT a finishing quote:
+				if (currChar != '\"')									// if the character is NOT a finishing quote:
 				{
-					while (c != '\"')									//   consider each next character a part of string until a finishing quote is met
+					while (currChar != '\"')							//   consider each next character a part of string until a finishing quote is met
 					{
-						if (c == '\\')									//   if the character is a control character:
+						if (currChar == '\\')							//   if the character is a control character:
 						{
 							getChar();
-							switch(c)									//     check the next character
+							switch(currChar)							//     check the next character
 							{
 								case 'n':								//      new line character
 									addChar('\n');
@@ -428,12 +430,12 @@ Lexeme Scanner::getLexeme()
 									break;
 								
 								case '\\': case '\'': case '\"': case '\?': case '\%':// standard characters
-									addChar(c);
+									addChar(currChar);
 									break;
 								
 								case '\n':								//	    string's continuation in the next line of the code
 									getChar();
-									while (c == '\t')					//		while the character is not horizontal tab used for code allignment:	
+									while (currChar == '\t')			//		while the character is not horizontal tab used for code allignment:	
 									{
 										getChar();						//        get next character
 									}
@@ -441,53 +443,69 @@ Lexeme Scanner::getLexeme()
 									break;
 								
 								default:								//      wrong control character
-									string wrongToken = "\\" + string(1, c);
+									string wrongToken = "\\" + string(1, currChar);
 									lexicalError(wrongToken);
 									break;
 							}
 						}
-						else if (c == '\n')								//   else: if the character is an end of line:
+						else if (currChar == '\n')						//   else: if the character is an end of line:
 						{
 							lexicalError("\"");							//     lexical error: no finishing quote
 						}
 						else											//    else: the character is a part of string
 						{
-							addChar(c);									//      so add it to the buffer
+							addChar(currChar);							//      so add it to the buffer
 						}
 						getChar();
 					}													//   when a finishing quote is met, the string is complete
-					lex = addUniqueStrConst(buf);				    	//   add the completed string to the identifiers table
-					return Lexeme(LEX_STR_CONST, lex);
+					currLexVal = addUniqueStrConst(buffer);				//   add the completed string to the identifiers table
+					return Lexeme(LEX_STR_CONST, currLexVal);
 				}
 				else													// if the character is a finishing quote
 				{
-					addChar(c);
+					addChar(currChar);
 					getChar();
-					currentState = INIT;								//   go out of the string state
-					lex = check(buf, delimTable);
-					return Lexeme(LEX_QUOTE, lex);						//   add finishing quote to the identifiers table
+					currState = INIT;									//   go out of the string state
+					currLexVal = checkPresence(delimTable);
+					return Lexeme(LEX_QUOTE, currLexVal);				//   add finishing quote to the identifiers table
 				}
 				break;
-				
-			case COMMENT:                                               // Multiple-line comment state
-				addChar(c);
-				if (c == '*')
+			
+			case COMMENT_SINGLE:                                        // One-line comment state
+				while (currChar != '\n' && currChar != EOF)
+				{
+					getChar();											//   get next characters until the end of line or the end of file is met
+				}
+				if (currChar == EOF)									//   if the current character is end of file
+				{
+					currState = END_OF_FILE;							//     change the state to end of file
+				}
+				else													//   else: return to the initial state and get the next character
+				{
+					currState = INIT;
+					getChar();
+				}
+				break;
+
+			case COMMENT_MULTI:											// Multi-line comment state
+				addChar(currChar);
+				if (currChar == '*')
 				{
 					getChar();
-					if (c == '/')
+					if (currChar == '/')								//   if the multi-line comment is closed
 					{
-						addChar(c);
+						addChar(currChar);
 						getChar();
-						currentState = INIT;
+						currState = INIT;								//     return to the initial state
 					}
 					else
 					{
 						ungetChar();
 					}
 				}
-				if (c == EOF)
+				if (currChar == EOF)
 				{
-					currentState = END_OF_FILE;
+					currState = END_OF_FILE;
 				}
 				else
 				{
@@ -495,30 +513,14 @@ Lexeme Scanner::getLexeme()
 				}	
 				break;
 			
-			case COMMENT_STRING:                                        // One-line comment state
-				while (c != '\n' && c != EOF)
-				{
-					getChar();
-				}
-				if (c == EOF)
-				{
-					currentState = END_OF_FILE;
-				}
-				else
-				{
-					getChar();
-					currentState = INIT;
-				}
-				break;
-			
 			case NOT_EQ:                                                // 'not equal' sign state
-				if (c == '=')                                           //   if the character is '='
+				if (currChar == '=')                                    //   if the character is '='
 				{
-					addChar(c);
-					currentState = INIT;
+					addChar(currChar);
+					currState = INIT;
 					getChar();
-					lex = check(buf, delimTable);
-					return Lexeme(LEX_NOT_EQ, lex);
+					currLexVal = checkPresence(delimTable);
+					return Lexeme(LEX_NOT_EQ, currLexVal);
 				}
 				else                                                    //   else: lexical error
 				{
@@ -527,47 +529,48 @@ Lexeme Scanner::getLexeme()
 				break;
 			
 			case DELIM:                                                 // Delimeter state:
-				char first;
-                first = c;
+				char firstChar;
+                firstChar = currChar;
 				getChar();
-                char second;
-                second = c;
+                char secondChar;
+                secondChar = currChar;
 				
 				// Composite delimeter analysis ("++", "--", "+=", "-=", "==", ">=", "<=")
 				if (													// Check the composite delimeter's first character
-					first == '+' ||
-					first == '-' ||
-					first == '>' ||
-					first == '<' ||
-					first == '='
-				)
-					switch(second)										// Check the composite delimeter's second character
+					firstChar == '+' ||
+					firstChar == '-' ||
+					firstChar == '>' ||
+					firstChar == '<' ||
+					firstChar == '='
+				) {
+					switch(secondChar)									// Check the composite delimeter's second character
 					{
 						case '+': case '-':
-							if (first == second)					    // Check that the composite delimeter is either "++" or "--"
+							if (firstChar == secondChar)				// Check that the composite delimeter is either "++" or "--"
 							{
-								addChar(second);
+								addChar(secondChar);
 								getChar();
 							}
 							break;
 
 						case '=':
-							addChar(second);							// '=' can be placed after any character of a composite delimeter
+							addChar(secondChar);						// '=' can be placed after any character of a composite delimeter
 							getChar();
 							break;
 						
 						default:
 							break;
 					}
-				currentState = INIT;
-				lex = check(buf, delimTable);
-				if (lex)
+				}
+				currState = INIT;
+				currLexVal = checkPresence(delimTable);
+				if (currLexVal > 0)										// if a string in buffer has a match in a delimeters table:
 				{
-					return Lexeme((lexemeType)(lex + (int)LEX_EOF), lex);
+					return Lexeme((lexemeType)(currLexVal + (int) LEX_EOF), currLexVal);//   return the delimeter as a lexeme
 				}
 				else
 				{
-					lexicalError("'" + buf + "'");
+					lexicalError("'" + buffer + "'");					// else: lexical error
 				}
 				break;
 				
