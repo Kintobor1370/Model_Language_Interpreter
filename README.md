@@ -2,13 +2,15 @@
 
 A C++ console application that parses and executes programs written in a custom programming language. The interpreter performs lexical analysis, syntax parsing, and semantic validation, and executes code using Reverse Polish Notation (RPN).
 
-__Supported data types:__
+## Supported data types
+
 - Integer: `int`
 - Real: `real`
 - String: `string`
 - Boolean: `bool`
 
-__Operators and their precedence:__
+## Operators and their precedence
+
 1. Logical NOT: `not`
 2. Increment / Decrement: `++`, `--`
 3. Multiplication / Division: `*`, `/`
@@ -18,7 +20,8 @@ __Operators and their precedence:__
 7. Relational: `==`, `!=`, `<`, `>`, `<=`, `>=`
 9. Assignment: `=`
 
-__Control flow:__
+## Control flow
+
 - Conditional statements: `if()`, `else`
 - Loops: `while()`, `do {...} while()`, `for()`
 - Nested loops
@@ -26,17 +29,20 @@ __Control flow:__
 
 The semantics of the aforementioned features are similar to those in the C programming language.
 
-__Input and Output:__
+## Input and Output
+
 - `read()`: Reads a __single__ variable <br> _Example:_ `int x; read(x);`
 - `write()`: Prints one or more expressions
 - `writeline()`: Prints one or more expressions, followed by the current line terminator
 
-__String operators:__
+## String operators
+
 - Declaration and assignment: `string str = "Hello, World!";`
 - Concatenation: ```string c = a + b;``` (Here, `a` and `b` are string constants)
 - Comparison: `>`, `<`, `==`, `!=` <br> _Example:_ `bool b = "Hello" == "Hello"; // true`
 
-__Comments:__
+## Comments
+
 - Both one-line and multi-line comments are supported
 - One-line comment example: ```// string str = "One-line comment";```
 - Multi-line comment example:
