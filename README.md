@@ -1,4 +1,4 @@
-# Model language interpreter
+# Model Language Interpreter
 
 A C++ console application that parses and executes programs written in a custom programming language. The interpreter performs lexical analysis, syntax parsing, and semantic validation, and executes code using Reverse Polish Notation (RPN).
 
