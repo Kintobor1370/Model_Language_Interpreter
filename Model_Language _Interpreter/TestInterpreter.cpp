@@ -1,4 +1,3 @@
-#include <iostream>
 #include <fstream>
 #include <conio.h>
 #include "Interpreter.cpp"
@@ -24,6 +23,13 @@ string getFileName()
 		cout << "Cannot open file \'" << fileName << "\'. Please try again.\n" << endl;
 		fileName = getFileName();
 	}
+	transform(fileName.begin(), fileName.end(), fileName.begin(), [](char c){
+		if (c == '/')
+		{
+			return '\\';
+		}
+		return c;
+	});
 	return fileName;
 }
 
@@ -88,6 +94,39 @@ void getExpectedResults(int testNumber)
 			break;
 
 		case 4:
+			for (x = 1; x <= 10; x++)
+			{
+				cout << "x = " << x << "\nCheck switch statement:\n   x ";
+				switch(x)
+				{
+					case 1:
+						cout << "= 1\n\n";
+						break;
+					
+					case 2:
+						cout << "= 2\n\n";
+						break;
+					
+					case 3:
+						cout << "= 3\n\n";
+						break;
+					
+					case 4:
+						cout << "= 4\n\n";
+						break;
+					
+					case 5:
+						cout << "= 5\n\n";
+						break;
+					
+					default:
+						cout << "> 5\n\n";
+						break;
+				}
+			}
+			break;
+
+		case 5:
 			x = 10;
 			y = 10;
 			while ((x <= 30) || (y > 5))
@@ -106,7 +145,7 @@ void getExpectedResults(int testNumber)
 			cout << "x = " << x << "\ny = " << y << '\n';
 			break;
 		
-		case 5:
+		case 6:
 			x = 10;
 			y = 10;
 			do
@@ -127,7 +166,7 @@ void getExpectedResults(int testNumber)
 			cout << "x = " << x << "\ny = " << y << '\n';
 			break;
 
-		case 6:
+		case 7:
 			x = 10;
 			y = 10;
 			for(int i=0; i<x; i++)
@@ -139,7 +178,7 @@ void getExpectedResults(int testNumber)
 			cout << "Final result: x = " << x << ", y = " << y << "\n";
 			break;
 
-		case 7:
+		case 8:
 			x = 10;
 			y = 10;
 			i = 0;
@@ -153,7 +192,7 @@ void getExpectedResults(int testNumber)
 			cout << "Final result: x = " << x << ", y = " << y << "\n";
 			break;
 
-		case 8:
+		case 9:
 			x = 5;
 			for (i=0; i<=9999; i++)
 			{
@@ -181,7 +220,19 @@ void getExpectedResults(int testNumber)
 			cout << "j = " << j << "\n";
 			break;
 
-		case 9:
+		case 10:
+			for (int i = 0; i < 10; i++)
+			{
+				cout << "   i = " << i << "\n";
+				if (i > 5)
+				{
+					continue;
+				}
+				i++;
+			}
+			break;
+
+		case 11:
 			x = 5;
 			y = 7;
 			z = 8;
@@ -196,7 +247,7 @@ void getExpectedResults(int testNumber)
 				goto Label;	
 			break;
 
-		case 10:
+		case 12:
 			cout << "Uncommented section\nStart:\n";
 			x = 10;
 			y = 10;
@@ -223,7 +274,7 @@ void getExpectedResults(int testNumber)
 			cout << "End\n";
 			break;
 
-		case 11:
+		case 13:
 			x = 1;
 			x++; 
 			cout << "x = 1, x++ = "<< x << "\n";
@@ -250,68 +301,47 @@ void getExpectedResults(int testNumber)
 		default:
 			break;
 	}
-	//cout << "\nExecution complete!\n";
 }
 
 
 int main()
 {
 	string programName;
-	string tests[] = {
+	vector<string> tests = {
 		"tests\\write_test.mdl",
 		"tests\\read_test.mdl",
 		"tests\\bool_test.mdl",
 		"tests\\if_test.mdl",
+		"tests\\switch_test.mdl",
 		"tests\\while_test.mdl",
 		"tests\\do_while_test.mdl",
 		"tests\\for_test.mdl",
 		"tests\\for_step_test.mdl",
 		"tests\\break_test.mdl",
+		"tests\\continue_test.mdl",
 		"tests\\goto_test.mdl",
 		"tests\\comment_test.mdl",
-		"tests\\unary_test.mdl",
-
-		"tests/write_test.mdl",
-		"tests/read_test.mdl",
-		"tests/bool_test.mdl",
-		"tests/if_test.mdl",
-		"tests/while_test.mdl",
-		"tests/do_while_test.mdl",
-		"tests/for_test.mdl",
-		"tests/for_step_test.mdl",
-		"tests/break_test.mdl",
-		"tests/goto_test.mdl",
-		"tests/comment_test.mdl",
-		"tests/unary_test.mdl"
+		"tests\\unary_test.mdl"
 	};
-	int amount = 12;
-	bool isTest = 0;
-	int testNum;
+	bool isTest = false;
+	int testIndex;
 	char input;
-
-//=====================================EXPECTED RESULT=====================================
-//======================================ACTUAL RESULT======================================
 	
 	system("cls");
 	programName = getFileName();
-
-	for (int i=0; i<amount*2; i++)
+	auto it = find(tests.begin(), tests.end(), programName);
+	if (it != tests.end())
 	{
-		if (programName == tests[i])
-		{
-			isTest = 1;
-			testNum = i % amount + 1;
-		}
+		isTest = true;
+		testIndex = distance(tests.begin(), it);
 	}
-
 	system("cls");
 	if (isTest)
 	{
-		system("cls");
-		cout << "==========================================TEST " << testNum << "=========================================\n\n";
+		cout << "==========================================TEST " << testIndex << "=========================================\n\n";
 		cout << ".....................................Expexted result.....................................\n";
 		
-		getExpectedResults(testNum - 1);
+		getExpectedResults(testIndex);
 		
 		cout << "\n......................................Actual result......................................\n";
 		

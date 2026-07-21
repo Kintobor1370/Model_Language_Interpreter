@@ -1,4 +1,3 @@
-#include <iostream>
 #include <stack>
 #include "Scanner.cpp"
 
@@ -21,8 +20,8 @@ using namespace std;
  * Constant parameter		CONST   	--> INT | STR | BOOL
  *
  * Operations				CODE_BLOCK	--> <OP>
- * Operation				OP       	--> DESCS | OP_STMNT | { OPS } | if (STMNT) OP <else OP> | while (STMNT) OP | do OP while (STMNT); |
- * 										 	for ([STMNT]; [STMNT]; [STMNT]) OP | break; | goto LABEL; | read(ID); | write (STMNT <, STMNT>);
+ * Operation				OP       	--> DESCS | OP_STMNT | { CODE_BLOCK } | if (STMNT) OP <else OP> | switch (ID) { case VAL: CODE_BLOCK default: CODE_BLOCK } | 
+ 											while (STMNT) OP | do OP while (STMNT); | for ([STMNT]; [STMNT]; [STMNT]) OP | break; | goto LABEL; | read(ID); | write (STMNT <, STMNT>);
  * Statement operator		OP_STMNT 	--> STMNT | ID = STMNT;
  * Statement				STMNT    	--> ADD | ADD = STMNT | ADD [==|<|>|<=|>=|!=] ADD 
  * Additive state			ADD		 	--> MULTI | MULTI [+ | - | or] MULTI
@@ -34,21 +33,22 @@ using namespace std;
 //___________________________________________REVERSE POLISH NOTATION PARSER____________________________________________
 class Parser
 {
-    Scanner scanner;                                                    // Lexical scanner
+	vector<Lexeme> sourceCode;											// Source code converted to a vector of lexical tokens
+	int count;															// Counter for the vector of lexical tokens
 	vector<Lexeme> RPNTable;                                            // Reverse Polish Notation (RPN) table (vectorised)
     
     stack<lexemeType> lexStack;
+	stack<int> loopInitPosStack;
     Lexeme currLex;                                                     // Current lexeme
 	lexemeType currType;                                                // Type of the current lexeme
 	int currVal;                                                        // Value of the current lexeme
 	
-	bool loopState;														// Indicator that the program iscurrently in loop state
-	int nestedLoopsCount;												// Number of nested loops (-1 : no loop state; 0 : no nested loops; >= 1 : >= 1 nested loops)
+	int nestedCodeBlocksCount;											// Number of nested code blocks (loops or switch) (-1 : no loop state; 0 : no nested code blocks; >= 1 : >= 1 nested code blocks)
 	bool isLvalue;														// Indicator that the current identifier is isLvalue
 	
 	struct breakStackItem
 	{
-		int nestedLoopNumber;
+		int nestedCodeBlockNum;
 		int position;
 	};
 	stack<breakStackItem> breakStack;						    		// Stack for break operators (Stack item consists of label's position in RPN and number of a nested loop containing the break operator)
@@ -80,7 +80,7 @@ class Parser
 	
 	// Semantic actions
 	void setVar();
-	void checkIdDeclared(int value);
+	void checkIdDeclared(int idIndex);
 	void checkIdInRead();
 	void checkOperationType();
 	void checkUnaryOperation();
@@ -98,10 +98,10 @@ class Parser
 	// Get the next lexeme
 	void getLexeme()
 	{
-		currLex = scanner.getLexeme();          						// The scanner gets a lexeme
+		currLex = sourceCode.at(count);									// Get the current lexeme
 		currType = currLex.getType();					                // Get type of the lexeme
 		currVal = currLex.getValue();					        		// Get value of the lexeme
-		//cout << currLex << "\n";
+		count++;														// Move to the next lexeme
 	}
 	
 	// Syntax error processing
@@ -146,10 +146,11 @@ class Parser
 	}
 	
 public:
-	Parser(const string fileName): scanner(fileName), opTable()
+	Parser(vector<Lexeme> sc)
 	{
-		loopState = 0;
-		nestedLoopsCount = -1;
+		sourceCode = std::move(sc);
+		count = 0;
+		nestedCodeBlocksCount = -1;
 		isLvalue = true;
 		isAssignment = false;
 	}
@@ -175,9 +176,6 @@ void extract(T1& stack, T2& item)
 
 void Parser::validateProgram()
 {
-	clearTables();
-	RPNTable.clear();
-
 	getLexeme();
 	HEADER();
 	if (currType != LEX_EOF)
@@ -245,6 +243,7 @@ void Parser::VAR()
 {
 	if (currType == LEX_ID)										
 	{
+		double idIndex = currVal;
 		setVar();														// assign this lexeme its type (recently saved in lexemes stack)
 		RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));				// add the lexeme to the RPN table
 		getLexeme();
@@ -255,6 +254,7 @@ void Parser::VAR()
             getLexeme();
             CONST();													//   analyse the constant value
             RPNTable.push_back(LEX_ASSIGN);
+			idTable[idIndex].setAssign();
         }
 		else
 		{
@@ -375,6 +375,323 @@ void Parser::OP()
 				);
 			}
 			break;
+
+		// Switch - case statement:
+		case LEX_SWITCH:
+		{
+			int insertIndex = RPNTable.size(); 
+			int insertSize = 0;
+			int stackSizeInit = breakStack.size();
+			getLexeme();
+
+			if (currType == LEX_LEFT_PAREN)
+			{
+				getLexeme();
+				if (currType == LEX_ID)
+				{
+					Lexeme idLex = currLex;
+					int idIndex = idLex.getValue();
+					if (!idTable[idIndex].isAssigned())
+					{
+						syntaxError(									// Syntax error #49
+							49,
+							"Variable \"" + idTable[idIndex].getName() + "\" is not assigned a value."
+						);
+					}
+					lexemeType idType = idTable[idIndex].getType();
+					
+					getLexeme();
+					if (currType == LEX_RIGHT_PAREN)
+					{
+						int switchTableIndex = switchLabelTable.size();
+						switchLabelTable.push_back(vector<pair<int, int>>{});
+						// Add the switch RPN, containing the index in a switch label table
+						RPNTable.push_back(Lexeme(RPN_ADDRESS, idLex.getValue()));
+						RPNTable.push_back(Lexeme(RPN_SWITCH, switchTableIndex));
+						RPNTable.push_back(Lexeme(RPN_GO));
+
+						getLexeme();
+						if (currType == LEX_LEFT_BRACE)
+						{
+							breakControllerOn();
+							getLexeme();
+							while (currType == LEX_CASE)
+							{
+								getLexeme();
+								if ((idType == LEX_INT && currType == LEX_INT_NUM) || (idType == LEX_REAL && currType == LEX_REAL_NUM))
+								{
+									Lexeme valLex = currLex;
+									getLexeme();
+									if (currType == LEX_COLON)
+									{
+										switchLabelTable.at(switchTableIndex).emplace_back(valLex.getValue(), RPNTable.size());
+										getLexeme();
+										OP();
+									}
+									else
+									{
+										syntaxError(					// Syntax error #49
+											49, 
+											"case statement: missing ':'"
+										);
+									}
+								}
+								else
+								{
+									syntaxError(						// Syntax error #48
+										48, 
+										"case statement: value type mismatch"
+									);
+								}
+							}
+
+							if (currType == LEX_DEFAULT)
+							{
+								getLexeme();
+								if (currType == LEX_COLON)
+								{
+									switchLabelTable.at(switchTableIndex).insert(
+										switchLabelTable.at(switchTableIndex).begin(),
+										make_pair(std::nan(""), RPNTable.size())
+									);
+									getLexeme();
+									OP();
+
+									if (currType == LEX_RIGHT_BRACE)
+									{
+										breakControllerOff();
+										getLexeme();
+									}
+									else
+									{
+										syntaxError(					// Syntax error #52
+											52, 
+											"Switch statement: missing '}'"
+										);
+									}
+								}
+								else
+								{
+									syntaxError(						// Syntax error #51
+											51, 
+											"default case statement: missing ':'"
+										);
+								}
+							}
+							else
+							{
+								syntaxError(							// Syntax error #50
+									50,
+									"Switch statement: missing default case"
+								);
+							}
+						}
+						else
+						{
+							syntaxError(								// Syntax error #47
+								47, 
+								"Switch statement: missing '{'"
+							);
+						}
+					}
+					else
+					{
+						syntaxError(46, "Missing ')'");					// Syntax error #46
+					}
+				}
+				else
+				{
+					syntaxError(										// Syntax error #45
+						45, 
+						"Expected identifer as an arguement of the 'switch' statement"
+					);
+				}
+			}
+			else
+			{
+				syntaxError(44, "Expected '(' after 'switch'");			// Syntax error #44
+			}
+
+			/*
+			if (currType == LEX_LEFT_PAREN)
+			{
+				getLexeme();
+				if (currType == LEX_ID)
+				{
+					Lexeme idLex = currLex;
+					int idIndex = idLex.getValue();
+					if (!idTable[idIndex].isAssigned())
+					{
+						syntaxError(									// Syntax error #49
+							49,
+							"Variable \"" + idTable[idIndex].getName() + "\" is not assigned a value."
+						);
+					}
+					lexemeType idType = idTable[idIndex].getType();
+					
+					getLexeme();
+					if (currType == LEX_RIGHT_PAREN)
+					{
+						getLexeme();
+						if (currType == LEX_LEFT_BRACE)
+						{
+							breakControllerOn();
+							getLexeme();
+							while (currType == LEX_CASE)
+							{
+								getLexeme();
+								if ((idType == LEX_INT && currType == LEX_INT_NUM) || (idType == LEX_REAL && currType == LEX_REAL_NUM))
+								{
+									Lexeme valLex = currLex;
+									getLexeme();
+									if (currType == LEX_COLON)
+									{
+										// Insert the RPN_GO conditions BEFORE the start of switch statement
+										int currSize = RPNTable.size();
+										RPNTable.insert(RPNTable.begin() + insertIndex, {
+											idLex,
+											valLex,
+											Lexeme(LEX_NOT_EQ),
+											Lexeme(RPN_LABEL, currSize),
+											Lexeme(RPN_GO_FALSE)
+										});
+										insertSize += 5;
+
+										// Shift each label lexeme by 5 (since 5 new lexemes were added before it)
+										transform(RPNTable.begin() + insertIndex, RPNTable.end(), RPNTable.begin() + insertIndex, [](Lexeme l){
+											if (l.getType() == RPN_LABEL)
+											{
+												return Lexeme(RPN_LABEL, l.getValue() + 5);
+											}
+											return l;
+										});
+
+										// Shift each break stack item position by 5
+										stack<breakStackItem> tempStack;
+										breakStackItem item;
+										while (breakStack.size() != stackSizeInit)
+										{
+											extract(breakStack, item);
+											item.position += 5;
+											tempStack.push(item);
+										}
+										while (!tempStack.empty())
+										{
+											extract(tempStack, item);
+											breakStack.push(item);
+										}
+
+										getLexeme();
+										OP();
+									}
+									else
+									{
+										syntaxError(					// Syntax error #49
+											49, 
+											"case statement: missing ':'"
+										);
+									}
+								}
+								else
+								{
+									syntaxError(						// Syntax error #48
+										48, 
+										"case statement: value type mismatch"
+									);
+								}
+							}
+
+							if (currType == LEX_DEFAULT)
+							{
+								getLexeme();
+								if (currType == LEX_COLON)
+								{
+									int currSize = RPNTable.size();
+									RPNTable.insert(RPNTable.begin() + insertIndex + insertSize, {
+										Lexeme(RPN_LABEL, currSize),
+										Lexeme(RPN_GO)
+									});
+									transform(RPNTable.begin() + insertIndex, RPNTable.end(), RPNTable.begin() + insertIndex, [](Lexeme l){
+										if (l.getType() == RPN_LABEL)
+										{
+											return Lexeme(RPN_LABEL, l.getValue() + 2);
+										}
+										return l;
+									});
+									stack<breakStackItem> tempStack;
+									breakStackItem item;
+									while (breakStack.size() != stackSizeInit)
+									{
+										extract(breakStack, item);
+										item.position += 2;
+											tempStack.push(item);
+									}
+									while (!tempStack.empty())
+									{
+										extract(tempStack, item);
+										breakStack.push(item);
+									}
+
+									getLexeme();
+									OP();
+
+									if (currType == LEX_RIGHT_BRACE)
+									{
+										breakControllerOff();
+										getLexeme();
+									}
+									else
+									{
+										syntaxError(					// Syntax error #52
+											52, 
+											"Switch statement: missing '}'"
+										);
+									}
+								}
+								else
+								{
+									syntaxError(						// Syntax error #51
+											51, 
+											"default case statement: missing ':'"
+										);
+								}
+							}
+							else
+							{
+								syntaxError(							// Syntax error #50
+									50,
+									"Switch statement: missing default case"
+								);
+							}
+						}
+						else
+						{
+							syntaxError(								// Syntax error #47
+								47, 
+								"Switch statement: missing '{'"
+							);
+						}
+					}
+					else
+					{
+						syntaxError(46, "Missing ')'");					// Syntax error #46
+					}
+				}
+				else
+				{
+					syntaxError(										// Syntax error #45
+						45, 
+						"Expected identifer as an arguement of the 'switch' statement"
+					);
+				}
+			}
+			else
+			{
+				syntaxError(44, "Expected '(' after 'switch'");			// Syntax error #44
+			}
+			*/
+			break;
+		}
 		
 		// 'while()' loop
 		case LEX_WHILE:
@@ -554,6 +871,7 @@ void Parser::OP()
 				getLexeme();
 				if (currType != LEX_RIGHT_PAREN)
 				{
+					loopInitPosStack.push(RPNTable.size());				// Push the initial position of the loop in the RPN table to the stack (for 'continue')
 					isAssignment = false;
 					STMNT();
 					if (currType == LEX_RIGHT_PAREN)
@@ -580,6 +898,7 @@ void Parser::OP()
 				RPNTable[pos1] = Lexeme(RPN_LABEL, RPNTable.size());
 				
 				breakControllerOff();
+				loopInitPosStack.pop();
 			}
 
 			// 'for ... step ... until ... do' loop
@@ -612,6 +931,7 @@ void Parser::OP()
 				RPNTable.push_back(Lexeme());
 				RPNTable.push_back(Lexeme(RPN_GO));
 				pos1 = RPNTable.size();
+				loopInitPosStack.push(pos1);
 
 				// for ... step <analysing this part> until ... do
 				if (currType == LEX_UNTIL)	
@@ -678,17 +998,46 @@ void Parser::OP()
 				RPNTable[pos3] = Lexeme(RPN_LABEL, RPNTable.size());
 				
 				breakControllerOff();
+				loopInitPosStack.pop();
 			}
 			break;
 		
 		case LEX_BREAK:													// break operator
 			checkBreak();
 			getLexeme();
-			if (currType != LEX_SEMICOLON)
+			if (currType == LEX_SEMICOLON)
+			{
+				getLexeme();
+			}
+			else
 			{
 				syntaxError(23, "did you forget ';' ?");				// Syntax error #23
 			}
-			getLexeme();
+			break;
+
+		case LEX_CONTINUE:
+			if (!loopInitPosStack.empty())
+			{
+				int loopInitPos = loopInitPosStack.top();
+				RPNTable.push_back(Lexeme(RPN_LABEL, loopInitPos));
+				RPNTable.push_back(Lexeme(RPN_GO));
+				getLexeme();
+				if (currType == LEX_SEMICOLON)
+				{
+					getLexeme();
+				}
+				else
+				{
+					syntaxError(54, "did you forget ';' ?");			// Syntax error #54
+				}
+			}
+			else
+			{
+				syntaxError(											// Syntax error #53
+					53,
+					"continue statement not within a 'for' loop"
+				);
+			}
 			break;
 		
 		case LEX_GOTO:													// goto operator
@@ -749,12 +1098,14 @@ void Parser::OP()
 				if (currType == LEX_ID)
 				{
 					checkIdInRead();
+					int idIndex = currVal;
 					RPNTable.push_back(Lexeme(RPN_ADDRESS, currVal));
 					getLexeme();
 					if (currType == LEX_RIGHT_PAREN)
 					{
 						getLexeme();
 						RPNTable.push_back(Lexeme(LEX_READ));
+						idTable[idIndex].setAssign();
 						if (currType == LEX_SEMICOLON)
 						{
 							getLexeme();
@@ -877,6 +1228,7 @@ void Parser::STMNT(bool lvalue)
 {
 	isLvalue = lvalue;
 	lexemeType assignedType = currType;  								// save the type of lvalue lexeme (in case of assigning variable of a different type)
+	double assignedVal = currVal;										// save the value of lvalue lexeme 
 	ADD();
 
 	if (currType == LEX_ASSIGN)											// if assignment takes place:
@@ -891,6 +1243,7 @@ void Parser::STMNT(bool lvalue)
 			STMNT();
 			checkTypeInAssign();
 			RPNTable.push_back(LEX_ASSIGN);
+			idTable[assignedVal].setAssign();
 		}
 		else
 		{
@@ -1109,14 +1462,17 @@ void Parser::FIN()
 		
 		case LEX_QUOTE:
 			getLexeme();
-			lexStack.push(LEX_STRING);
-            RPNTable.push_back(currLex);
-			if (currType != LEX_STR_CONST)
+			if (currType == LEX_STR_CONST)
+			{
+				lexStack.push(LEX_STRING);
+				RPNTable.push_back(currLex);
+				getLexeme();											// get the finishing quote (if it is missing lexical error will be triggered)
+				getLexeme();
+			}
+			else
 			{
 				syntaxError(41, "No string constant found");			// Syntax error #41
 			}
-			getLexeme();												// get the finishing quote (if it is missing lexical error will be triggered)
-			getLexeme();
 			break;
 		
 		case LEX_TRUE: case LEX_FALSE:
@@ -1270,13 +1626,13 @@ void Parser::checkTypeInCondition()
 // Checking break
 void Parser::checkBreak()
 {
-	if(loopState)														// if the code is in loop state:
+	if (nestedCodeBlocksCount > -1)										// if the code is in a nested code block:
 	{
 		int pos = RPNTable.size();
-		breakStackItem newItem {nestedLoopsCount, pos};
+		breakStackItem newItem {nestedCodeBlocksCount, pos};
 		breakStack.push(newItem);										//   push break's position in RPN into stack
-		RPNTable.push_back(Lexeme());										//   add empty lexeme (will be assigned transfer location later) to RPN table
-		RPNTable.push_back(Lexeme(RPN_GO));								    //   add transfer lexeme to RPN table
+		RPNTable.push_back(Lexeme());									//   add empty lexeme (will be assigned transfer location later) to RPN table
+		RPNTable.push_back(Lexeme(RPN_GO));								//   add transfer lexeme to RPN table
 	}
 	else																// else:
 	{																	//    semantic error
@@ -1306,22 +1662,17 @@ void Parser::checkGoto()
 // Enable break controller
 void Parser::breakControllerOn()
 {
-	loopState = 1;														//   the code is in loop state
-    nestedLoopsCount++;													//   number of nested loops may also increase
+    nestedCodeBlocksCount++;											//   increase number of nested code blocks
 }
 
 // Disable break controller
 void Parser::breakControllerOff()
 {
-	if (!nestedLoopsCount)												// if a standard loop was finished and not a nested one:
-	{
-		loopState = 0;											    	//   the code is out of loop state
-	}
 	breakStackItem item;												// if a loop (standard or nested) has a break operator in it, then break stack keeps the nested
 	while (!breakStack.empty())											// loop number, from where break was called, and a position of its label in the RPN table
 	{																	// thus, if break stack is not empty:
 		extract(breakStack, item);										//   extract the number of nested loop and label's postion in RPN table
-		if (item.nestedLoopNumber == nestedLoopsCount)
+		if (item.nestedCodeBlockNum == nestedCodeBlocksCount)
 		{
 			RPNTable[item.position] = Lexeme(RPN_LABEL, RPNTable.size());//	 assign end of the loop as a transfer location for this label
 		}
@@ -1331,7 +1682,7 @@ void Parser::breakControllerOff()
             break;
         }
 	}
-	nestedLoopsCount--;
+	nestedCodeBlocksCount--;
 }
 
 // Converting unary operation to RPN

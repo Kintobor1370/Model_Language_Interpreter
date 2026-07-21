@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cmath>
 #include "Tables.cpp"
 
@@ -44,8 +43,8 @@ private:
 		bufferTop = 0;
 	}
 	
-	// Add new character in buffer
-	void addChar(char newChar)
+	// Add new character to buffer
+	void addToBuffer(char newChar)
 	{
 		buffer.push_back(newChar);
 		bufferTop++;
@@ -128,8 +127,10 @@ public:
 	{
 		fclose(f);
 	}
-	
+
 	Lexeme getLexeme();
+
+	vector<Lexeme> getLexemesList();
 };
 
 
@@ -141,6 +142,7 @@ string Scanner::wordTable[] =
 	"break",
 	"case",
 	"continue",
+	"default",
 	"do",
 	"else",
 	"end",
@@ -157,6 +159,7 @@ string Scanner::wordTable[] =
 	"real",
 	"step",
 	"string",
+	"switch",
 	"true",
 	"until",
 	"while",
@@ -172,28 +175,30 @@ lexemeType Scanner::words[] =
 	LEX_BREAK,															// 3
 	LEX_CASE,															// 4
 	LEX_CONTINUE,														// 5
-	LEX_DO,																// 6
-	LEX_ELSE,															// 7
-	LEX_END,															// 8
-	LEX_FALSE,															// 9
-	LEX_FOR,															// 10
-	LEX_GOTO,															// 11
-	LEX_IF,																// 12
-	LEX_INT,															// 13
-	LEX_NOT,															// 14
-	LEX_OF,																// 15
-	LEX_OR,																// 16
-	LEX_PROGRAM,														// 17
-	LEX_READ,															// 18
-	LEX_REAL,															// 19
-	LEX_STEP,															// 20
-	LEX_STRING,															// 21
-	LEX_TRUE,															// 22
-	LEX_UNTIL,															// 23
-	LEX_WHILE,															// 24
-	LEX_WRITE,															// 25
-	LEX_WRITELINE,														// 26
-	LEX_EOF,															// 27
+	LEX_DEFAULT,														// 6
+	LEX_DO,																// 7
+	LEX_ELSE,															// 8
+	LEX_END,															// 9
+	LEX_FALSE,															// 10
+	LEX_FOR,															// 11
+	LEX_GOTO,															// 12
+	LEX_IF,																// 13
+	LEX_INT,															// 14
+	LEX_NOT,															// 15
+	LEX_OF,																// 16
+	LEX_OR,																// 17
+	LEX_PROGRAM,														// 18
+	LEX_READ,															// 19
+	LEX_REAL,															// 20
+	LEX_STEP,															// 21
+	LEX_STRING,															// 22
+	LEX_SWITCH,															// 23
+	LEX_TRUE,															// 24
+	LEX_UNTIL,															// 25
+	LEX_WHILE,															// 26
+	LEX_WRITE,															// 27
+	LEX_WRITELINE,														// 28
+	LEX_EOF,															// 29
 };
 
 // Table of delimeters
@@ -277,7 +282,7 @@ Lexeme Scanner::getLexeme()
 				else if (isalpha(currChar))								//   if the character is an identifier:									
 				{
 					clearBuffer();
-					addChar(currChar);
+					addToBuffer(currChar);
 					currState = IDENT;
 					getChar();
 				}
@@ -294,7 +299,7 @@ Lexeme Scanner::getLexeme()
 				}
 				else if (currChar == '\"')
 				{
-					addChar(currChar);
+					addToBuffer(currChar);
 					currState = STRING;
 					getChar();
 					currLexVal = checkPresence(delimTable);
@@ -303,7 +308,7 @@ Lexeme Scanner::getLexeme()
 				else if (currChar == '/')                               //   if the character is start of a comment:
 				{
 					clearBuffer();
-					addChar(currChar);
+					addToBuffer(currChar);
 					getChar();
 					switch (currChar)
 					{
@@ -329,7 +334,7 @@ Lexeme Scanner::getLexeme()
 				else if (currChar == '!')								//   if the character is 'not equal' sign:
 				{
 					clearBuffer();
-					addChar(currChar);
+					addToBuffer(currChar);
 					currState = NOT_EQ;
 					getChar();
 				}
@@ -340,7 +345,7 @@ Lexeme Scanner::getLexeme()
 				else                                                    //    else: the character is a part of a delimeter
 				{
 					clearBuffer();
-					addChar(currChar);
+					addToBuffer(currChar);
 					currState = DELIM;
 				}
 				break;
@@ -348,7 +353,7 @@ Lexeme Scanner::getLexeme()
 			case IDENT:													// Identifier state:
 				if (isalpha(currChar) || isdigit(currChar))             //   if the character is alphabetic or a number:
 				{
-					addChar(currChar);                                  //     add it to the buffer as a part of an identifier
+					addToBuffer(currChar);								//     add it to the buffer as a part of an identifier
 					getChar();
 				}
 				else                                                    //   else: the identifier is finished
@@ -396,8 +401,8 @@ Lexeme Scanner::getLexeme()
 				else                                                    //   else: the number after decimal is finished
 				{
 					currState = INIT;
-					int numDigitsAfterDecimal = pow(10, to_string(decimal).length());
-					double fullNumber = number + (double) decimal / numDigitsAfterDecimal;// combine the whole value with the value after decimal
+					int decimalDigitsCount = to_string(decimal).length();
+					double fullNumber = number + (double) decimal / pow(10, decimalDigitsCount);// combine the whole value with the value after decimal
 					return Lexeme(LEX_REAL_NUM, fullNumber);			//     return the number as a lexeme
 				}
 				break;
@@ -414,28 +419,28 @@ Lexeme Scanner::getLexeme()
 							switch(currChar)							//     check the next character
 							{
 								case 'n':								//      new line character
-									addChar('\n');
+									addToBuffer('\n');
 									break;
 								
 								case '0':								//		end of line character
-									addChar('\0');
+									addToBuffer('\0');
 									break;
 								
 								case 'r':								//      carriage return
-									addChar('\r');
+									addToBuffer('\r');
 									break;
 								
 								case 't':								//      horizontal tab character
-									addChar('\t');
+									addToBuffer('\t');
 									break;
 								
 								case '\\': case '\'': case '\"': case '\?': case '\%':// standard characters
-									addChar(currChar);
+									addToBuffer(currChar);
 									break;
 								
 								case '\n':								//	    string's continuation in the next line of the code
 									getChar();
-									while (currChar == '\t')			//		while the character is not horizontal tab used for code allignment:	
+									while (currChar == ' ')				//		while the character is not horizontal tab used for code allignment:	
 									{
 										getChar();						//        get next character
 									}
@@ -454,7 +459,7 @@ Lexeme Scanner::getLexeme()
 						}
 						else											//    else: the character is a part of string
 						{
-							addChar(currChar);							//      so add it to the buffer
+							addToBuffer(currChar);						//      so add it to the buffer
 						}
 						getChar();
 					}													//   when a finishing quote is met, the string is complete
@@ -463,7 +468,7 @@ Lexeme Scanner::getLexeme()
 				}
 				else													// if the character is a finishing quote
 				{
-					addChar(currChar);
+					addToBuffer(currChar);
 					getChar();
 					currState = INIT;									//   go out of the string state
 					currLexVal = checkPresence(delimTable);
@@ -488,13 +493,13 @@ Lexeme Scanner::getLexeme()
 				break;
 
 			case COMMENT_MULTI:											// Multi-line comment state
-				addChar(currChar);
+				addToBuffer(currChar);
 				if (currChar == '*')
 				{
 					getChar();
 					if (currChar == '/')								//   if the multi-line comment is closed
 					{
-						addChar(currChar);
+						addToBuffer(currChar);
 						getChar();
 						currState = INIT;								//     return to the initial state
 					}
@@ -516,7 +521,7 @@ Lexeme Scanner::getLexeme()
 			case NOT_EQ:                                                // 'not equal' sign state
 				if (currChar == '=')                                    //   if the character is '='
 				{
-					addChar(currChar);
+					addToBuffer(currChar);
 					currState = INIT;
 					getChar();
 					currLexVal = checkPresence(delimTable);
@@ -548,13 +553,13 @@ Lexeme Scanner::getLexeme()
 						case '+': case '-':
 							if (firstChar == secondChar)				// Check that the composite delimeter is either "++" or "--"
 							{
-								addChar(secondChar);
+								addToBuffer(secondChar);
 								getChar();
 							}
 							break;
 
 						case '=':
-							addChar(secondChar);						// '=' can be placed after any character of a composite delimeter
+							addToBuffer(secondChar);					// '=' can be placed after any character of a composite delimeter
 							getChar();
 							break;
 						
@@ -580,4 +585,17 @@ Lexeme Scanner::getLexeme()
 		}
 	}
 	while (true);
+};
+
+vector<Lexeme> Scanner::getLexemesList()
+{
+	vector<Lexeme> lexList;
+	Lexeme currLex = getLexeme();
+	while (currLex.getType() != LEX_EOF)
+	{
+		lexList.push_back(currLex);
+		currLex = getLexeme();
+	}
+	lexList.push_back(currLex);
+	return lexList;
 };

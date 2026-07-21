@@ -111,6 +111,7 @@ public:
 //_______________________________________________________TABLES________________________________________________________
 vector<Identifier> idTable;												// Identifiers table (vectorised)
 vector<string> strConstTable;	    									// String constants table (vectorised)
+vector<vector<pair<int, int>>> switchLabelTable;						// Table of labels for each switch case (vectorised) (1st int - value that identifier must be equal to, 2nd int - label in the RPN table)
 
 // Adda unique identifier to the identifiers table
 int addUniqueId(const string name)
@@ -147,7 +148,7 @@ void clearTables()
 }
 
 // Operation rules table
-class OperationTable
+struct OperationTable
 {
 	vector<lexemeType> opRealMath = { LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH };
 	vector<lexemeType> opIntMath = { LEX_PLUS, LEX_MINUS, LEX_TIMES, LEX_SLASH, LEX_PERCENT };
@@ -179,7 +180,6 @@ class OperationTable
 	};
 
 public:
-	OperationTable() {}
 	lexemeType getResultType(lexemeType opX, lexemeType opY, lexemeType oper);
 };
 

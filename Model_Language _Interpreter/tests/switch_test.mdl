@@ -1,0 +1,43 @@
+program
+{
+    for (int x = 1; x <= 10; x++)
+    {
+        writeline("x = ", x);
+        writeline("Check switch statement:");
+        write("   x ");
+        switch(x)
+        {
+            case 1:
+            {
+                writeline("= 1");
+                break;
+            }
+            case 2:
+            {
+                writeline("= 2");
+                break;
+            }
+            case 3:
+            {
+                writeline("= 3");
+                break;
+            }
+            case 4:
+            {
+                writeline("= 4");
+                break;
+            }
+            case 5:
+            {
+                writeline("= 5");
+                break;
+            }
+            default:
+            {
+                writeline("> 5");
+                break;
+            }
+        }
+        writeline(" ");
+    }
+}

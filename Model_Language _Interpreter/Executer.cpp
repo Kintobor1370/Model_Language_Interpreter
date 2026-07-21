@@ -1,5 +1,3 @@
-#include <iostream>
-#include <stack>
 #include "Parser.cpp"
 
 using namespace std;
@@ -50,6 +48,7 @@ public:
 			{
 				case LEX_STRING:
 					extract(strConstsStack, strConst);
+					//cout << "String: " << strConst << "\n";
 					break;
 				
 				case LEX_INT: case LEX_REAL: case LEX_BOOL:
@@ -92,9 +91,11 @@ void Executer::executeProgram(vector<Lexeme> &RPNTable)
 
 	/*
 	cout << "\nRPN Table:\n";
+	int i = 0;
 	for (auto & rpn : RPNTable)
 	{
-		cout << rpn << "\n";
+		cout << i << ": " << rpn << "\n";
+		i++;
 	}
 	*/
 	
@@ -107,6 +108,23 @@ void Executer::executeProgram(vector<Lexeme> &RPNTable)
 			case RPN_LABEL:
                 args.push(currLex.getValue());
                 break;
+
+			case RPN_SWITCH:
+			{
+				arg1 = args.top();
+				args.pop();
+				typesStack.pop();
+				vector<pair<int, int>> switchLabelVec = switchLabelTable.at(currLex.getValue());
+				auto it = find_if(switchLabelVec.begin() + 1, switchLabelVec.end(), [arg1](pair<int, int> valAndLabel){
+					return valAndLabel.first == idTable[arg1].getValue();
+				});
+				if (it == switchLabelVec.end())
+				{
+					it = switchLabelVec.begin();
+				}
+				args.push(it->second);
+				break;
+			}
                 
 			case RPN_ADDRESS:
 				args.push(currLex.getValue());
@@ -150,7 +168,7 @@ void Executer::executeProgram(vector<Lexeme> &RPNTable)
                 else
 				{
 					executionError(
-						"identifier \"" + idTable[arg1].getName() + "\" doesn't have a value"
+						"identifier \"" + idTable[arg1].getName() + "\" does not contain a value"
 					);
 				}
 				break;
