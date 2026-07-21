@@ -22,24 +22,43 @@ A C++ console application that parses and executes programs written in a custom 
 
 ## Control flow
 
-- Conditional statements: `if()`, `else`
+- Conditional statements: `if()`, `else`, `switch`
 - Loops: `while()`, `do {...} while()`, `for()`
 - Nested loops
-- Jump statements: `break`, `goto`
+- Jump statements: `break`, `continue`, `goto`
 
 The semantics of the aforementioned features are similar to those in the C programming language.
 
 ## Input and Output
 
-- `read()`: Reads a __single__ variable <br> _Example:_ `int x; read(x);`
-- `write()`: Prints one or more expressions
-- `writeline()`: Prints one or more expressions, followed by the current line terminator
+- `read()`: Reads a __single__ variable. <br>
+  _Example:_
+  ```
+  int x;
+  read(x);
+  ```
+- `write()`: Prints one or more expressions.
+- `writeline()`: Prints one or more expressions, followed by the current line terminator.
 
 ## String operators
 
 - Declaration and assignment: `string str = "Hello, World!";`
 - Concatenation: ```string c = a + b;``` (Here, `a` and `b` are string constants)
 - Comparison: `>`, `<`, `==`, `!=` <br> _Example:_ `bool b = "Hello" == "Hello"; // true`
+
+## Custom conditional loop
+
+  - Syntax: ```for statement1 step statement2 until statement3 do```
+  - `statement1` is executed once before executing the loop code block
+  - `statement2` is executed every time the loop code block is executed
+  - `statement3` is the condition that must be __true__ for the loop to finish
+  - Code example:
+    ```
+    for int i = 0 step ++i until i == n do
+    {
+      writeline("Iteration ", i + 1);
+    }
+    ```
 
 ## Comments
 
