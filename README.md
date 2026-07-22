@@ -22,7 +22,7 @@ A C++ console application that parses and executes programs written in a custom 
 
 ## Control flow
 
-- Conditional statements: `if()`, `else`, `switch`
+- Conditional statements: `if()`, `else`, `switch()`
 - Loops: `while()`, `do {...} while()`, `for()`
 - Nested loops
 - Jump statements: `break`, `continue`, `goto`
