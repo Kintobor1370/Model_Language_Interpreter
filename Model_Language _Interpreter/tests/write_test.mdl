@@ -1,4 +1,0 @@
-program
-{
-	writeline("Hello, World!");
-}

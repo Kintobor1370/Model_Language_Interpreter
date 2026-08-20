@@ -1,0 +1,19 @@
+program
+{
+	int x, y, z;
+	x = 5;
+	y = 7;
+	z = 8;
+	goto Label;
+
+Label:
+	x++;
+	y--;
+	writeline("x = ", x);
+	writeline("y = ", y);
+	writeline(" ");
+	
+	x++;
+	if(x < 10)
+		goto Label;
+}

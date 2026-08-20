@@ -1,0 +1,32 @@
+program
+{
+	writeline("Uncommented section\nStart:");
+	int x = 10;
+	int y = 10;
+	int z = 10;
+
+	for(int i=0; i<x; i++)
+	{
+		x = x - 2;
+		y = y + 1;
+	}
+	writeline("x = ", x);
+	writeline("y = ", y);
+	writeline("z = ", z);
+	writeline("End\n");
+	writeline("Commented section\nStart:");
+
+//	writeline("This is a commented section!");
+
+/*	
+	if(x < 5)
+		x = x + 1;
+	else
+		x = x - 1;
+	writeline("x = ", x);
+	writeline("y = ", y);
+	writeline("z = ", z);
+*/
+
+	writeline("End");
+}
